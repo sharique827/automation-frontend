@@ -88,7 +88,7 @@ const Features: React.FC = () => {
 	return (
 		<div className="bg-gradient-to-br from-gray-100 to-gray-200 py-10 px-8">
 			<h2 className="text-4xl font-extrabold text-center text-gray-800 mb-12">
-				🚀 Our Features
+			    Our Features
 			</h2>
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
 				{features.map((feature, index) => (
@@ -113,7 +113,7 @@ const Features: React.FC = () => {
 				))}
 			</div>
 			<h2 className="text-4xl font-extrabold text-center text-gray-800 mb-12 mt-12">
-				📌 Active Domain
+				Active Domain
 			</h2>
 			<div className="bg-white rounded-2xl shadow-lg p-6 ">
 				{activeDomain?.domain?.map((dom: any) => {
