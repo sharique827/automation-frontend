@@ -6,6 +6,7 @@ import { IoPlay } from "react-icons/io5";
 import { AiOutlineDelete } from "react-icons/ai";
 import { IoMdDownload } from "react-icons/io";
 import { FcWorkflow } from "react-icons/fc";
+import { MdSyncAlt, MdHistory } from "react-icons/md";
 
 import { Flow, SubmitEventParams } from "@/types/flow-types";
 import { SessionCache } from "@/types/session-types";
@@ -15,6 +16,8 @@ import {
     deleteExpectation,
     getCompletePayload,
     getMappedFlow,
+    getTransactionData,
+    updateTransactionData,
     newFlow,
     proceedFlow,
     requestForFlowPermission,
@@ -68,13 +71,104 @@ export function Accordion({
     const apiCallFailCount = useRef(0);
     const clickCountRef = useRef(0);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Prevents the sessionCache useEffect from resetting mappedFlow during a Replay operation
+    const isReplayingRef = useRef(false);
+    // Persists the replayed transaction ID until the parent sessionCache syncs from the backend
+    const replayedTxIdRef = useRef<string | null>(null);
+
+    const [replayPopupOpen, setReplayPopupOpen] = useState(false);
+    const [selectedReplayStep, setSelectedReplayStep] = useState<number | "">("");
+
+    const handleSelectiveReplay = async () => {
+        if (selectedReplayStep === "") {
+            toast.error("Please select a valid action to replay from.");
+            return;
+        }
+
+        const transactionId = sessionCache?.lastFlowMap?.[flow.id];
+        if (!transactionId || !sessionCache) return;
+
+        // Step 1: Validate range of the originally executed flow
+        const selectedStep = mappedFlow.sequence.find((s) => s.index === selectedReplayStep);
+        if (!selectedStep) {
+            toast.error("Selected step not found in the flow sequence.");
+            return;
+        }
+
+        if (selectedStep.status !== "COMPLETE") {
+            toast.error("Cannot replay from selected action as it was not part of the executed flow.");
+            return;
+        }
+
+        // Close popup
+        setReplayPopupOpen(false);
+
+        // Block useEffect + CircularProgress polling
+        isReplayingRef.current = true;
+
+        try {
+            toast.info(`Preparing selective replay from ${selectedStep.actionType}...`);
+
+            // Step 2: Fetch the full transaction data from the backend
+            const txData = await getTransactionData(transactionId, sessionCache.subscriberUrl);
+            if (!txData || !txData.apiList) {
+                throw new Error("Failed to fetch transaction data for selective replay");
+            }
+
+            // Step 3: Filter/Truncate apiList to keep only elements strictly BEFORE the selected action's timestamp
+            const boundaryTime = new Date(selectedStep.payloads.timestamp).getTime();
+            const truncatedApiList = txData.apiList.filter((item: any) => {
+                return new Date(item.timestamp).getTime() < boundaryTime;
+            });
+
+            // Step 4: Update the transaction cache in Redis with the truncated apiList
+            await updateTransactionData(transactionId, sessionCache.subscriberUrl, truncatedApiList);
+
+            // Step 5: Restore txId back into flowMap + set activeFlow in Redis
+            replayedTxIdRef.current = transactionId;
+            await putCacheData(
+                {
+                    flowMap: {
+                        ...(sessionCache.flowMap ?? {}),
+                        [flow.id]: transactionId,
+                    },
+                    activeFlow: flow.id,
+                },
+                sessionId
+            );
+
+            // Step 6: Load and display updated transaction data immediately
+            const updatedTxData = await getMappedFlow(transactionId, sessionId);
+            for (let i = 0; i < updatedTxData.sequence.length; i++) {
+                const payloads = updatedTxData.sequence[i].payloads;
+                if (payloads && !payloads.entryType) {
+                    updatedTxData.sequence[i].payloads!.entryType = "API";
+                }
+            }
+            setMappedFlow(updatedTxData);
+            setActiveFlow(flow.id);
+            setIsOpen(true);
+
+            // Step 7: Proceed the flow
+            await proceedFlow(sessionId, transactionId);
+            toast.success("Selective replay started successfully!");
+        } catch (error: any) {
+            console.error("Selective replay error:", error);
+            toast.error(`Failed to perform selective replay: ${error.message || error}`);
+        } finally {
+            isReplayingRef.current = false;
+        }
+    };
 
     useEffect(() => {
+        // Skip if a Replay is in progress — it manages mappedFlow directly
+        if (isReplayingRef.current) return;
+
         const executedFlowId = Object.keys(
             (sessionCache?.flowMap as Record<string, string | null>) || {}
         );
 
-        if (executedFlowId.includes(flow.id) && sessionCache) {
+        if ((executedFlowId.includes(flow.id) || replayedTxIdRef.current) && sessionCache) {
             getCurrentState(sessionCache);
         }
 
@@ -86,8 +180,12 @@ export function Accordion({
     }, [flow, sessionCache]);
 
     const getCurrentState = async (sessionCache: SessionCache) => {
-        const tx = sessionCache.flowMap?.[flow.id];
+        const tx = sessionCache.flowMap?.[flow.id] || replayedTxIdRef.current;
         if (tx) {
+            // Once the sessionCache flowMap catches up with our replayed transaction ID, we can clear the fallback
+            if (sessionCache.flowMap?.[flow.id] === replayedTxIdRef.current) {
+                replayedTxIdRef.current = null;
+            }
             try {
                 const txData = await getMappedFlow(tx, sessionId);
                 for (let i = 0; i < txData.sequence.length; i++) {
@@ -113,6 +211,8 @@ export function Accordion({
     };
 
     const fetchTransactionData = async () => {
+        // Don't interfere while a Replay is loading data
+        if (isReplayingRef.current) return;
         if (activeFlow !== flow.id || !sessionCache) {
             return;
         }
@@ -300,6 +400,91 @@ export function Accordion({
                         }}
                     />
                 )}
+                {!activeFlow && sessionCache?.lastFlowMap?.[flow.id] && !sessionCache?.flowMap[flow.id] && (
+                    <>
+                        <IconButton
+                            icon={<MdSyncAlt className="text-md" />}
+                            label="Replay Full Flow"
+                            color="orange"
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                const transactionId = sessionCache.lastFlowMap?.[flow.id];
+                                if (!transactionId) return;
+
+                                // Hold the transaction ID in our ref fallback
+                                replayedTxIdRef.current = transactionId;
+                                // Block useEffect + CircularProgress polling for the entire operation
+                                isReplayingRef.current = true;
+                                
+                                try {
+                                    toast.info("Replaying flow...");
+
+                                    // Step 1: Restore txId back into flowMap + set activeFlow in Redis
+                                    await putCacheData(
+                                        {
+                                            flowMap: {
+                                                ...(sessionCache.flowMap ?? {}),
+                                                [flow.id]: transactionId,
+                                            },
+                                            activeFlow: flow.id,
+                                        },
+                                        sessionId
+                                    );
+
+                                    // Step 2: Load and display previous transaction data immediately
+                                    const txData = await getMappedFlow(transactionId, sessionId);
+                                    for (let i = 0; i < txData.sequence.length; i++) {
+                                        const payloads = txData.sequence[i].payloads;
+                                        if (payloads && !payloads.entryType) {
+                                            txData.sequence[i].payloads!.entryType = "API";
+                                        }
+                                    }
+                                    setMappedFlow(txData);
+                                    setActiveFlow(flow.id);
+                                    setIsOpen(true);
+
+                                    // Step 3: Proceed the flow — guard stays active until this completes
+                                    await proceedFlow(sessionId, transactionId);
+                                } catch (error) {
+                                    console.error("Replay error:", error);
+                                    toast.error("Failed to replay flow");
+                                    // Clear fallback on error
+                                    replayedTxIdRef.current = null;
+                                } finally {
+                                    // Release only after everything is done
+                                    isReplayingRef.current = false;
+                                }
+                            }}
+                        />
+                        <IconButton
+                            icon={<MdHistory className="text-md" />}
+                            label="Replay from Action"
+                            color="orange"
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                setSelectedReplayStep("");
+                                
+                                const transactionId = sessionCache.lastFlowMap?.[flow.id];
+                                if (transactionId) {
+                                    try {
+                                        toast.info("Loading previous execution history...");
+                                        const txData = await getMappedFlow(transactionId, sessionId);
+                                        for (let i = 0; i < txData.sequence.length; i++) {
+                                            const payloads = txData.sequence[i].payloads;
+                                            if (payloads && !payloads.entryType) {
+                                                txData.sequence[i].payloads!.entryType = "API";
+                                            }
+                                        }
+                                        setMappedFlow(txData);
+                                    } catch (err) {
+                                        console.error("Failed to fetch previous execution history:", err);
+                                    }
+                                }
+                                setReplayPopupOpen(true);
+                            }}
+                        />
+                    </>
+                )}
                 {activeFlow === flow.id && (
                     <IconButton
                         icon={<FaRegStopCircle className=" text-xl" />}
@@ -338,6 +523,8 @@ export function Accordion({
                                 ),
                                 missedSteps: [],
                             });
+                            replayedTxIdRef.current = null; // Clear fallback on manual clear
+                            // Backend clearFlowData automatically saves txId to lastFlowMap
                             await clearFlowData(sessionId, flow.id);
                             onFlowClear();
                         }}
@@ -456,6 +643,62 @@ export function Accordion({
                         referenceData={mappedFlow.reference_data}
                         flowId={flow.id}
                     />
+                </Popup>
+            )}
+            {replayPopupOpen && (
+                <Popup isOpen={replayPopupOpen} onClose={() => setReplayPopupOpen(false)}>
+                    <div className="p-4">
+                        <h3 className="text-lg font-bold mb-4 text-gray-800">Replay from Specific Action</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Select an action to start the replay from. The system will retain all previous steps and resume execution from this action onward.
+                        </p>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Starting Action
+                            </label>
+                            <select
+                                value={selectedReplayStep}
+                                onChange={(e) => setSelectedReplayStep(Number(e.target.value))}
+                                className="w-full p-2.5 border border-gray-300 rounded-lg text-gray-900 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-all cursor-pointer font-medium"
+                            >
+                                <option value="" className="bg-white text-gray-500">Select an action...</option>
+                                {mappedFlow.sequence
+                                    .filter((step) => !step.actionType.startsWith("on_"))
+                                    .map((step) => {
+                                        const isComplete = step.status === "COMPLETE";
+                                        return (
+                                            <option
+                                                key={step.index}
+                                                value={step.index}
+                                                disabled={!isComplete}
+                                                className={!isComplete ? "bg-white text-gray-400" : "bg-white text-gray-900 font-medium"}
+                                            >
+                                                {step.label || step.actionType} {!isComplete ? " (Not Executed)" : ""}
+                                            </option>
+                                        );
+                                    })}
+                            </select>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setReplayPopupOpen(false)}
+                                className="px-4 py-2 border rounded-md text-gray-600 hover:bg-gray-50 transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSelectiveReplay}
+                                disabled={selectedReplayStep === ""}
+                                className={`px-4 py-2 rounded-md text-white font-medium transition ${
+                                    selectedReplayStep === ""
+                                        ? "bg-gray-300 cursor-not-allowed"
+                                        : "bg-sky-600 hover:bg-sky-700"
+                                }`}
+                            >
+                                Start Replay
+                            </button>
+                        </div>
+                    </div>
                 </Popup>
             )}
         </div>

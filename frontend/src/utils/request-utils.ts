@@ -134,6 +134,24 @@ export const getTransactionData = async (transaction_id: string, subscriber_url:
     }
 };
 
+export const updateTransactionData = async (
+    transaction_id: string,
+    subscriber_url: string,
+    apiList: unknown[]
+) => {
+    try {
+        const response = await apiClient.put(API_ROUTES.SESSIONS.TRANSACTION, {
+            transaction_id,
+            subscriber_url,
+            apiList,
+        });
+        return response.data;
+    } catch (e: unknown) {
+        console.error("error while updating transaction data", e);
+        throw new Error(e instanceof Error ? e.message : `updateTransactionData: Unknown error: ${e}`);
+    }
+};
+
 export const addExpectation = async (
     action: string,
     flowId: string,

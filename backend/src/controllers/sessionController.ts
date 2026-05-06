@@ -9,6 +9,7 @@ import {
 	getTransactionDataService,
 	requestForFlowPermissionService,
 	updateSessionService,
+	updateTransactionDataService,
 	setMockSession,
 } from "../services/sessionService";
 import { saveLog } from "../utils/console";
@@ -242,5 +243,20 @@ export const requestForFlowPermission = async (req: Request, res: Response) => {
 			e
 		);
 		res.status(500).send({ message: "Error requesting flow permission" });
+	}
+};
+
+export const updateTransactionData = async (req: Request, res: Response) => {
+	try {
+		const { transaction_id, subscriber_url, apiList } = req.body;
+		const result = await updateTransactionDataService(transaction_id, subscriber_url, apiList);
+		res.status(200).send({ message: result });
+	} catch (e: any) {
+		logger.error(
+			"error updating transaction data",
+			{ transaction_id: req.body.transaction_id, subscriber_url: req.body.subscriber_url },
+			e
+		);
+		res.status(500).send({ message: "Error updating transaction data" });
 	}
 };

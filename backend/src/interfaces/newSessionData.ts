@@ -47,6 +47,8 @@ export interface SessionCache {
 	// against session_id
 	transactionIds: string[];
 	flowMap: Record<FlowId, TransactionId | undefined>;
+	/** Stores the last txId for each flow after it is cleared, enabling Replay */
+	lastFlowMap?: Record<FlowId, TransactionId>;
 	npType: "BAP" | "BPP";
 	domain: string;
 	version: string;

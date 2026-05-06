@@ -7,6 +7,7 @@ import {
 	deleteExpectation,
 	getSession,
 	getTransactionData,
+	updateTransactionData,
 	requestForFlowPermission,
 	updateSession,
 } from "../controllers/sessionController";
@@ -48,6 +49,12 @@ router.get(
 	validateRequiredParams(["transaction_id", "subscriber_url"]),
 	otelTracing("query.transaction_id"),
 	getTransactionData
+);
+
+router.put(
+	"/transaction",
+	otelTracing("body.transaction_id"),
+	updateTransactionData
 );
 
 router.get(

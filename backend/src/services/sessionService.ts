@@ -123,6 +123,8 @@ export const updateSessionService = async (
 		sessionDifficulty,
 		activeFlow,
 		activeStep,
+		lastFlowMap,
+		flowMap,
 	} = data;
 
 	try {
@@ -145,6 +147,14 @@ export const updateSessionService = async (
 		if (activeFlow)
 			session.activeFlow = activeFlow === "NONE" ? null : activeFlow;
 		if (activeStep) session.activeStep = activeStep;
+		// Merge lastFlowMap so replay txIds persist across clears
+		if (lastFlowMap) {
+			session.lastFlowMap = { ...(session.lastFlowMap ?? {}), ...lastFlowMap };
+		}
+		// Merge flowMap entries (used by Replay to restore a cleared txId)
+		if (flowMap) {
+			session.flowMap = { ...(session.flowMap ?? {}), ...flowMap };
+		}
 
 		// Save the updated session data back to Redis
 		await RedisService.setKey(
@@ -174,6 +184,11 @@ export const clearFlowService = async (
 		logger.debug(JSON.stringify(session));
 		const transactionId = session.flowMap[flowId];
 		if (transactionId) {
+			// Persist the txId in lastFlowMap so the Replay button can reload it
+			session.lastFlowMap = {
+				...(session.lastFlowMap ?? {}),
+				[flowId]: transactionId,
+			};
 			const index = session.transactionIds.indexOf(transactionId);
 			if (index > -1) {
 				session.transactionIds.splice(index, 1);
@@ -322,6 +337,47 @@ export const getTransactionDataService = async (
 			e,
 		);
 		throw new Error("Error fetching transaction data");
+	}
+};
+
+export const updateTransactionDataService = async (
+	transaction_id: string,
+	subscriber_url: string,
+	apiList: any[],
+) => {
+	try {
+		const key = `${transaction_id}::${subscriber_url}`;
+		const data = await RedisService.getKey(key);
+		if (!data) {
+			throw new Error("Transaction data not found");
+		}
+		const transaction = JSON.parse(data);
+		transaction.apiList = apiList;
+
+		if (apiList.length > 0) {
+			const lastApi = apiList[apiList.length - 1];
+			transaction.latestAction = lastApi.action || lastApi.formType || "";
+			transaction.latestTimestamp = lastApi.timestamp || new Date().toISOString();
+		} else {
+			transaction.latestAction = "";
+			transaction.latestTimestamp = "";
+		}
+
+		await RedisService.setKey(key, JSON.stringify(transaction));
+
+		const statusKey = `FLOW_STATUS_${transaction_id}::${subscriber_url}`;
+		if (await RedisService.keyExists(statusKey)) {
+			await RedisService.deleteKey(statusKey);
+		}
+
+		return "Transaction updated successfully";
+	} catch (e: any) {
+		logger.error(
+			"Error updating transaction data",
+			{ transaction_id, subscriber_url },
+			e,
+		);
+		throw new Error("Error updating transaction data");
 	}
 };
 

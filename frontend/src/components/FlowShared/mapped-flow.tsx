@@ -26,7 +26,14 @@ export default function DisplayFlow({
 
     useEffect(() => {
         const conf = mappedFlow?.sequence?.filter(
-            (s, index) => s.status === "INPUT-REQUIRED" && index !== 0
+            (s, index) => {
+                if (s.status !== "INPUT-REQUIRED") return false;
+                if (index === 0) {
+                    const transactionId = sessionData?.flowMap[flowId];
+                    return !!transactionId;
+                }
+                return true;
+            }
         )?.[0]?.input;
         if (conf?.length === 0) {
             if (sessionData?.activeFlow !== flowId) return;
