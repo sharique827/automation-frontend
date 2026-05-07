@@ -18,6 +18,7 @@ import { RawConfigEditorModal } from "@pages/protocol-playground/ui/raw-config-e
 import { PlaygroundHelpModal } from "@pages/protocol-playground/ui/playground-help-modal";
 import { FlowInfoModal } from "@pages/protocol-playground/ui/flow-info-modal";
 import { ExportReviewModal } from "@pages/protocol-playground/ui/export-review-modal";
+import { GitHubImportModal } from "@pages/protocol-playground/ui/github-import-modal";
 import { AIProvider } from "@pages/protocol-playground/ai/context/ai-provider";
 
 const PlaygroundPage = () => {
@@ -53,12 +54,53 @@ const PlaygroundPage = () => {
         config: playgroundContext.config,
     });
 
+    const handleImportFromGitHub = () => {
+        if (!playgroundContext.config) {
+            setIsGitHubImportOpen(true);
+            return;
+        }
+        const { domain, version, flowId } = playgroundContext.config.meta;
+        openModal(
+            <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+                <h3 className="text-base font-semibold text-gray-800 mb-1">
+                    Replace Current Flow?
+                </h3>
+                <p className="text-sm text-gray-500 mb-1">You already have a flow loaded:</p>
+                <p className="text-sm font-mono text-sky-700 mb-1">{flowId}</p>
+                <p className="text-xs text-gray-400 mb-4">
+                    {domain} &middot; v{version}
+                </p>
+                <p className="text-sm text-gray-600 mb-5">
+                    Importing from GitHub will replace it. Any unsaved changes will be lost.
+                </p>
+                <div className="flex justify-end gap-2">
+                    <button
+                        onClick={closeModal}
+                        className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => {
+                            closeModal();
+                            setIsGitHubImportOpen(true);
+                        }}
+                        className="px-4 py-2 text-sm rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+                    >
+                        Continue
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     const [activeRightTab, setActiveRightTab] = useState<PlaygroundRightTabType>("session");
     const [isRawEditorOpen, setIsRawEditorOpen] = useState(false);
     const [rawConfigValue, setRawConfigValue] = useState("");
     const [rawConfigError, setRawConfigError] = useState<string | null>(null);
     const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [isFlowInfoOpen, setIsFlowInfoOpen] = useState(false);
+    const [isGitHubImportOpen, setIsGitHubImportOpen] = useState(false);
     const [exportReviewConfig, setExportReviewConfig] = useState<MockPlaygroundConfigType | null>(
         null
     );
@@ -175,6 +217,7 @@ const PlaygroundPage = () => {
                         flowId={playgroundContext.config?.meta.flowId || "N/A"}
                         onExport={exportConfig}
                         onImport={importConfig}
+                        onImportFromGitHub={handleImportFromGitHub}
                         onClear={modalHandlers.showDeleteConfirmation}
                         onRun={async () => {
                             await runConfig();
@@ -243,6 +286,15 @@ const PlaygroundPage = () => {
                     onConfirm={handleExportConfirm}
                     onCancel={handleExportCancel}
                     isDownloading={isExportDownloading}
+                />
+                <GitHubImportModal
+                    isOpen={isGitHubImportOpen}
+                    defaultDomain={playgroundContext.config?.meta.domain}
+                    onClose={() => setIsGitHubImportOpen(false)}
+                    onImport={(config) => {
+                        playgroundContext.setCurrentConfig(config);
+                        toast.success("Flow imported from GitHub successfully");
+                    }}
                 />
             </div>
         </AIProvider>

@@ -8,6 +8,7 @@ import {
     FaUpload,
     FaPencilAlt,
     FaEdit,
+    FaGithub,
 } from "react-icons/fa";
 import { GrRedo } from "react-icons/gr";
 import { IoMdSkipForward, IoMdTrash } from "react-icons/io";
@@ -21,6 +22,7 @@ interface PlaygroundHeaderProps {
     onExport: () => void;
     onExportForDeployment: () => void;
     onImport: () => void;
+    onImportFromGitHub: () => void;
     onClear: () => void;
     onRun: () => void;
     onRunCurrent: () => void;
@@ -36,11 +38,13 @@ interface PlaygroundHeaderProps {
 const FileMenu = ({
     onExport,
     onImport,
+    onImportFromGitHub,
     onExportForDeployment,
     onEditRaw,
 }: {
     onExport: () => void;
     onImport: () => void;
+    onImportFromGitHub: () => void;
     onExportForDeployment: () => void;
     onEditRaw: () => void;
 }) => {
@@ -96,6 +100,16 @@ const FileMenu = ({
                         <FaUpload size={13} className="text-sky-500 shrink-0" />
                         Upload JSON
                     </button>
+                    <button
+                        className={item}
+                        onClick={() => {
+                            onImportFromGitHub();
+                            setOpen(false);
+                        }}
+                    >
+                        <FaGithub size={13} className="text-gray-700 shrink-0" />
+                        Import from GitHub
+                    </button>
                     <div className="my-1 border-t border-gray-100" />
                     <button
                         className={item}
@@ -131,6 +145,7 @@ export const PlaygroundHeader = ({
     onExport,
     onExportForDeployment,
     onImport,
+    onImportFromGitHub,
     onClear,
     onRun,
     onRunCurrent,
@@ -192,6 +207,7 @@ export const PlaygroundHeader = ({
             <FileMenu
                 onExport={onExport}
                 onImport={onImport}
+                onImportFromGitHub={onImportFromGitHub}
                 onExportForDeployment={onExportForDeployment}
                 onEditRaw={onEditRaw}
             />
@@ -231,7 +247,13 @@ export const PlaygroundHeader = ({
                 <>
                     <div className="w-px h-6 bg-gray-200 mx-0.5" />
                     <IconButton
-                        icon={isFullscreen ? <MdFullscreenExit size={18} /> : <MdFullscreen size={18} />}
+                        icon={
+                            isFullscreen ? (
+                                <MdFullscreenExit size={18} />
+                            ) : (
+                                <MdFullscreen size={18} />
+                            )
+                        }
                         label={isFullscreen ? "Exit full screen" : "Full screen"}
                         onClick={onToggleFullscreen}
                         color="gray"
