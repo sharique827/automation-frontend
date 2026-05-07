@@ -44,6 +44,7 @@ import SelectMetroTRV11 from "../custom-forms/select-metro-trv11";
 import { RJSFSchema } from "@rjsf/utils";
 import RetINVLInitILBP from "../custom-forms/retinvl-ilbp";
 import ReteB2BSelect from "../custom-forms/reteb2b-select";
+import ReteB2BInitOffers from "../custom-forms/reteb2b-init-offers";
 
 import InitMetroTRV11 from "../custom-forms/init-metro-trv11";
 import SelectMutualFundFIS14 from "../custom-forms/mutual_fund_select";
@@ -69,6 +70,7 @@ export interface FormFieldConfigType {
         | "airline_seat_select"
         | "ret10_grocery_select"
         | "reteb2b_select"
+        | "reteb2b_init_offers"
         | "ret11_nestedSelect"
         | "retinvl_init"
         | "retinvl_init_offers"
@@ -270,6 +272,10 @@ export default function FormConfig({
         return <ReteB2BSelect submitEvent={submitEvent} />;
     }
 
+    if (formConfig.find((field) => field.type === "reteb2b_init_offers")) {
+        return <ReteB2BInitOffers submitEvent={submitEvent} />;
+    }
+
     if (formConfig.find((field) => field.type === "retinvl_init")) {
         return <RetINVLInit submitEvent={submitEvent} />;
     }
@@ -408,7 +414,13 @@ export default function FormConfig({
     }
 
     if (formConfig.find((field) => field.type === "trv11_210_common_item_fulfillment_select")) {
-        return <Metro210CommonItemFulfillmentSelection key={flowId} submitEvent={submitEvent} flowId={flowId} />;
+        return (
+            <Metro210CommonItemFulfillmentSelection
+                key={flowId}
+                submitEvent={submitEvent}
+                flowId={flowId}
+            />
+        );
     }
 
     // NOTE: The JsonSchemaForm check must come after all other specific form type checks above.
