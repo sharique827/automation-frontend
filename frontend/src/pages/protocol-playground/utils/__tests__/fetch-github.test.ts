@@ -205,9 +205,14 @@ describe("fetchYamlFiles", () => {
 
         await fetchYamlFiles("feat/my-branch", "folder with spaces");
 
-        const calledUrl = fetchSpy.mock.calls[0][0] as string;
-        expect(calledUrl).toContain("feat%2Fmy-branch");
-        expect(calledUrl).toContain("folder%20with%20spaces");
+        expect(fetchSpy).toHaveBeenCalledWith(
+            expect.stringContaining("feat%2Fmy-branch"),
+            expect.anything()
+        );
+        expect(fetchSpy).toHaveBeenCalledWith(
+            expect.stringContaining("folder%20with%20spaces"),
+            expect.anything()
+        );
     });
 });
 
