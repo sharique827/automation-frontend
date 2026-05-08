@@ -7,6 +7,7 @@ import { AiOutlineDelete } from "react-icons/ai";
 import { IoMdDownload } from "react-icons/io";
 import { FcWorkflow } from "react-icons/fc";
 import { MdSyncAlt, MdHistory } from "react-icons/md";
+import { useSession } from "@context/context";
 
 import { Flow, SubmitEventParams } from "@/types/flow-types";
 import { SessionCache } from "@/types/session-types";
@@ -55,6 +56,7 @@ export function Accordion({
     onFlowStop,
     onFlowClear,
 }: AccordionProps) {
+    const { setRequestData, setResponseData } = useSession();
     const [inputPopUp, setInputPopUp] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [mappedFlow, setMappedFlow] = useState<FlowMap>({
@@ -157,6 +159,28 @@ export function Accordion({
             toast.error(`Failed to perform selective replay: ${error.message || error}`);
         } finally {
             isReplayingRef.current = false;
+        }
+    };
+
+    const handleStepClick = async (step: any) => {
+        if (step.status !== "COMPLETE") {
+            setRequestData({ info: "Step not complete" });
+            setResponseData({ info: "Step not complete" });
+            return;
+        }
+        if (step.payloads?.entryType === "FORM") {
+            setRequestData({ info: step.payloads });
+            setResponseData({ info: step.payloads });
+            return;
+        }
+        try {
+            const payloadIds = step.payloads?.payloads.map((p: any) => p.payloadId) ?? [];
+            const payloads = await getCompletePayload(payloadIds);
+            setRequestData(payloads.map((p: any) => p.req));
+            setResponseData(payloads.map((p: any) => p.res.response));
+            toast.info(`Loaded ${step.actionType} payload details on the right panel!`);
+        } catch (error) {
+            console.error("Failed to fetch step payloads:", error);
         }
     };
 
@@ -733,3 +757,7 @@ function getPercent(mappedFlow: FlowMap) {
     const completedSteps = mappedFlow.sequence.filter((step) => step.status === "COMPLETE").length;
     return (completedSteps / totalSteps) * 100;
 }
+
+
+
+
