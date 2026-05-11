@@ -8,7 +8,7 @@ export interface GAEvent {
 }
 
 export const initGA = () => {
-    ReactGA.initialize("G-YLS9F8RMJY"); // Replace with your Measurement ID
+    ReactGA.initialize("G-JEZFPTBKF0");
 };
 
 export const trackPageView = (path: string) => {
