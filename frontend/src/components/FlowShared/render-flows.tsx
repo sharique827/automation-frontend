@@ -152,14 +152,41 @@ function RenderFlows({
         {} as SessionCache["sessionDifficulty"]
     );
     const [isFlowStopped, setIsFlowStopped] = useState<boolean>(false);
-    const [selectedTab, setSelectedTab] = useState<"Request" | "Response" | "Metadata" | "Guide">(
-        "Request"
-    );
+    const [selectedTab, setSelectedTab] = useState<
+        "Request" | "Response" | "Metadata" | "Guide" | "Diff"
+    >("Request");
     const [requestData, setRequestData] = useState<Record<string, unknown>>({});
     const [responseData, setResponseData] = useState<Record<string, unknown> | SideViewResponse>(
         {}
     );
     const [metadata, setMetadata] = useState<Record<string, ExtractedMetadataValue>>({});
+    const [clickHistory, setClickHistory] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (
+            requestData &&
+            Object.keys(requestData).length > 0 &&
+            (requestData as any).info === undefined
+        ) {
+            setClickHistory((prev) => {
+                if (
+                    prev.length > 0 &&
+                    JSON.stringify(prev[prev.length - 1]) === JSON.stringify(requestData)
+                ) {
+                    return prev;
+                }
+                const nextHistory = [...prev, requestData];
+                if (nextHistory.length > 2) {
+                    nextHistory.shift();
+                }
+                return nextHistory;
+            });
+        }
+    }, [requestData]);
+
+    useEffect(() => {
+        setClickHistory([]);
+    }, [activeFlow]);
     const apiCallFailCount = useRef(0);
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
     const [isGuideOpen, setIsGuideOpen] = useState(false);
@@ -250,7 +277,7 @@ function RenderFlows({
 
             // ✅ Extract response payload safely
             if (sideView?.response?.res?.[0]?.response) {
-                responsePayload = sideView.response.res[0].response;
+                responsePayload = sideView?.response?.res?.[0]?.response as Record<string, unknown>;
             } else if (sideView?.response) {
                 responsePayload = sideView.response;
             }
@@ -265,7 +292,7 @@ function RenderFlows({
             let responsePayload: Record<string, unknown> = {};
 
             if (sideView?.response?.res?.[0]?.response) {
-                responsePayload = sideView.response.res[0].response;
+                responsePayload = sideView?.response?.res?.[0]?.response as Record<string, unknown>;
             } else if (sideView?.response) {
                 responsePayload = sideView.response;
             }
@@ -370,6 +397,7 @@ function RenderFlows({
         setRequestData(EMPTY_RECORD);
         setResponseData(EMPTY_RECORD);
         setMetadata(EMPTY_METADATA);
+        setClickHistory([]);
         fetchSessionData();
     };
 
@@ -647,10 +675,11 @@ function RenderFlows({
                         <div className=" bg-gray-100 rounded-md border sticky top-20">
                             {/* <h2 className="m-1 text-lg font-semibold">Request & Response</h2> */}
                             <Tabs
-                                className="mt-4 ml-2"
+                                className="mt-4 ml-2 !w-[calc(100%-1rem)] overflow-x-auto whitespace-nowrap"
                                 options={[
                                     { key: "Request", label: "Request" },
                                     { key: "Response", label: "Response" },
+                                    { key: "Diff", label: "Payload Diff 🔄" },
                                     {
                                         key: "Metadata",
                                         label: (
@@ -672,7 +701,7 @@ function RenderFlows({
                                     },
                                 ]}
                                 onSelectOption={(value: string) => {
-                                    setSelectedTab(value as "Request" | "Response" | "Metadata");
+                                    setSelectedTab(value as any);
                                 }}
                                 defaultTab="Request"
                             />
@@ -732,6 +761,79 @@ function RenderFlows({
                                                         </p>
                                                     </div>
                                                 )}
+                                            </div>
+                                        ) : selectedTab === "Diff" ? (
+                                            <div className="bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+                                                {/* Diff header */}
+                                                <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
+                                                    <span className="text-xs font-bold text-slate-300">
+                                                        🔍 State Evolution (Previous ➔ Current
+                                                        Clicked Payload)
+                                                    </span>
+                                                    <span className="text-[10px] bg-sky-950 text-sky-400 border border-sky-800 px-2 py-0.5 rounded-full font-bold">
+                                                        Conceptually Sound
+                                                    </span>
+                                                </div>
+
+                                                {/* Diff body */}
+                                                <div className="p-3 max-h-[500px] overflow-y-auto font-mono text-[11px] leading-relaxed select-text">
+                                                    {(!requestData ||
+                                                        Object.keys(requestData).length === 0) &&
+                                                    (!responseData ||
+                                                        Object.keys(responseData).length === 0) ? (
+                                                        <div className="text-center py-8 text-slate-500">
+                                                            No payloads available to diff. Click a
+                                                            completed step on the timeline.
+                                                        </div>
+                                                    ) : (
+                                                        generateJsonDiff(
+                                                            clickHistory[0] || {},
+                                                            clickHistory[1] || requestData
+                                                        ).map((line, idx) => {
+                                                            let bgClass =
+                                                                "text-slate-400 py-0.5 px-2 rounded-sm";
+                                                            let prefix = "  ";
+                                                            if (line.type === "add") {
+                                                                bgClass =
+                                                                    "bg-emerald-950/40 text-emerald-400 border-l-2 border-emerald-500/60 font-semibold py-0.5 px-2 rounded-sm";
+                                                                prefix = "+ ";
+                                                            } else if (line.type === "remove") {
+                                                                bgClass =
+                                                                    "bg-rose-950/40 text-rose-400 border-l-2 border-rose-500/60 font-semibold py-0.5 px-2 rounded-sm line-through";
+                                                                prefix = "- ";
+                                                            } else if (line.type === "change") {
+                                                                bgClass =
+                                                                    "bg-amber-950/40 text-amber-300 border-l-2 border-amber-500/60 font-semibold py-0.5 px-2 rounded-sm";
+                                                                prefix = "✎ ";
+                                                            }
+                                                            return (
+                                                                <div
+                                                                    key={idx}
+                                                                    className={`${bgClass} hover:bg-slate-800/30 transition-all duration-75 whitespace-pre`}
+                                                                >
+                                                                    <span>{prefix}</span>
+                                                                    <span>{line.text}</span>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+
+                                                {/* Diff legend footer */}
+                                                <div className="flex items-center gap-4 px-4 py-2.5 bg-slate-900 border-t border-slate-800 text-[10px] text-slate-500 font-medium">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="w-2.5 h-2.5 bg-emerald-500/20 border border-emerald-500 rounded-sm"></span>
+                                                        <span>Added</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="w-2.5 h-2.5 bg-rose-500/20 border border-rose-500 rounded-sm"></span>
+                                                        <span>Removed</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="w-2.5 h-2.5 bg-amber-500/20 border border-amber-500 rounded-sm"></span>
+                                                        <span>Modified</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         ) : (
                                             <JsonView
@@ -803,4 +905,93 @@ function updateLocalStorageSession(sessionData: SessionCache, sessionId: string)
         currentData.push(data);
     }
     localStorage.setItem("flowTestingSessions", JSON.stringify(currentData));
+}
+
+function generateJsonDiff(
+    obj1: any,
+    obj2: any
+): Array<{ type: "add" | "remove" | "change" | "same"; path: string; text: string }> {
+    const lines: Array<{ type: "add" | "remove" | "change" | "same"; path: string; text: string }> =
+        [];
+
+    const isObject = (val: any) => val !== null && typeof val === "object";
+
+    const diff = (o1: any, o2: any, indent = 0, path = "") => {
+        const ind = "  ".repeat(indent);
+
+        if (Array.isArray(o1) && Array.isArray(o2)) {
+            lines.push({ type: "same", path, text: `${ind}[` });
+            const maxLength = Math.max(o1.length, o2.length);
+            for (let i = 0; i < maxLength; i++) {
+                const subPath = `${path}[${i}]`;
+                if (i >= o1.length) {
+                    lines.push({
+                        type: "add",
+                        path: subPath,
+                        text: `${ind}  ${JSON.stringify(o2[i], null, 2).split("\n").join(`\n${ind}  `)}`,
+                    });
+                } else if (i >= o2.length) {
+                    lines.push({
+                        type: "remove",
+                        path: subPath,
+                        text: `${ind}  ${JSON.stringify(o1[i], null, 2).split("\n").join(`\n${ind}  `)}`,
+                    });
+                } else {
+                    diff(o1[i], o2[i], indent + 1, subPath);
+                }
+            }
+            lines.push({ type: "same", path, text: `${ind}]` });
+        } else if (isObject(o1) && isObject(o2)) {
+            lines.push({ type: "same", path, text: `${ind}{` });
+            const allKeys = Array.from(new Set([...Object.keys(o1), ...Object.keys(o2)]));
+            allKeys.sort().forEach((key) => {
+                const subPath = path ? `${path}.${key}` : key;
+                const val1 = o1[key];
+                const val2 = o2[key];
+
+                if (!(key in o1)) {
+                    lines.push({
+                        type: "add",
+                        path: subPath,
+                        text: `${ind}  "${key}": ${JSON.stringify(val2, null, 2).split("\n").join(`\n${ind}  `)}`,
+                    });
+                } else if (!(key in o2)) {
+                    lines.push({
+                        type: "remove",
+                        path: subPath,
+                        text: `${ind}  "${key}": ${JSON.stringify(val1, null, 2).split("\n").join(`\n${ind}  `)}`,
+                    });
+                } else if (isObject(val1) && isObject(val2)) {
+                    lines.push({ type: "same", path: subPath, text: `${ind}  "${key}": ` });
+                    diff(val1, val2, indent + 1, subPath);
+                } else if (JSON.stringify(val1) !== JSON.stringify(val2)) {
+                    lines.push({
+                        type: "change",
+                        path: subPath,
+                        text: `${ind}  "${key}": ${JSON.stringify(val1)} ➔ ${JSON.stringify(val2)}`,
+                    });
+                } else {
+                    lines.push({
+                        type: "same",
+                        path: subPath,
+                        text: `${ind}  "${key}": ${JSON.stringify(val1)}`,
+                    });
+                }
+            });
+            lines.push({ type: "same", path, text: `${ind}}` });
+        } else {
+            if (JSON.stringify(o1) !== JSON.stringify(o2)) {
+                lines.push({
+                    type: "change",
+                    path,
+                    text: `${ind}${JSON.stringify(o1)} ➔ ${JSON.stringify(o2)}`,
+                });
+            } else {
+                lines.push({ type: "same", path, text: `${ind}${JSON.stringify(o1)}` });
+            }
+        }
+    };
+
+    diff(obj1, obj2);
+    return lines;
 }
