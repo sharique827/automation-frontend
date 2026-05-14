@@ -22,6 +22,8 @@ import {
     PreviousSessionItem,
     PreviousSessionsPanel,
 } from "@/pages/scenario/components/previous-sessions-panel";
+import { apiClient } from "@services/apiClient";
+import { API_ROUTES } from "@services/apiRoutes";
 
 type DomainVersionWithUsecase = DomainVersion & {
     usecase: string[];
@@ -42,6 +44,15 @@ interface SessionResponse {
     subscriberUrl: string;
     activeStep: number;
 }
+
+type SavedPrefAPI = {
+    subscriber_url: string;
+    domain: string;
+    version: string;
+    usecase_id: string;
+    np_type: string;
+    env: string;
+};
 
 export default function FlowContent() {
     const {
@@ -86,6 +97,11 @@ export default function FlowContent() {
     const navigate = useNavigate();
 
     const [existingSessions, setExistingSessions] = useState<PreviousSessionItem[]>([]);
+    const [isInitializing, setIsInitializing] = useState(true);
+    const [savedPreferences, setSavedPreferences] = useState<Record<string, ScenarioFormData>>({});
+    const [selectedConfigKey, setSelectedConfigKey] = useState("");
+    const [selectedUsecaseId, setSelectedUsecaseId] = useState("");
+    const [showManualForm, setShowManualForm] = useState(false);
 
     const createAndOpenSession = async (data: ScenarioFormData, newTab = true) => {
         try {
@@ -142,24 +158,24 @@ export default function FlowContent() {
             console.error("Error in onSubmit: ", err);
         }
     };
-    const fetchFlows = async (data: ScenarioFormData) => {
-        try {
-            const response = await axios.get<{ data: { flows: Flow[] } }>(
-                `${import.meta.env.VITE_BACKEND_URL}/config/flows`,
-                {
-                    params: {
-                        domain: data.domain,
-                        version: data.version,
-                        usecase: data.usecaseId,
-                        options: ["WORKBENCH"],
-                    },
-                }
-            );
-            setFlows(response.data.data.flows);
-        } catch (e) {
-            console.error("error while fetching flows", e);
-        }
-    };
+    // const fetchFlows = async (data: ScenarioFormData) => {
+    //     try {
+    //         const response = await axios.get<{ data: { flows: Flow[] } }>(
+    //             `${import.meta.env.VITE_BACKEND_URL}/config/flows`,
+    //             {
+    //                 params: {
+    //                     domain: data.domain,
+    //                     version: data.version,
+    //                     usecase: data.usecaseId,
+    //                     options: ["WORKBENCH"],
+    //                 },
+    //             }
+    //         );
+    //         setFlows(response.data.data.flows);
+    //     } catch (e) {
+    //         console.error("error while fetching flows", e);
+    //     }
+    // };
 
     const onSubmitHandler = async (data: ScenarioFormData) => {
         trackEvent({
@@ -167,29 +183,58 @@ export default function FlowContent() {
             action: "Form submitted",
         });
         setIsFormSubmitted(true);
-        await fetchFlows(data);
+        // await fetchFlows(data);
         await onSubmit(data);
     };
 
-    const fetchFormFieldData = async () => {
+    const fetchFormFieldData = async (): Promise<Domain[]> => {
         try {
-            const response = await axios.get(
-                `${import.meta.env.VITE_BACKEND_URL}/config/senarioFormData`
+            const response = await apiClient.get<{ domain: Domain[] }>(
+                API_ROUTES.CONFIG.SCENARIO_FORM_DATA
             );
-            setDynamicList((prev) => {
-                return { ...prev, domain: response.data.domain || [] };
-            });
+            const domains: Domain[] = response.data.domain || [];
+            setDynamicList((prev) => ({ ...prev, domain: domains }));
+            return domains;
         } catch (e) {
             console.error("error while fetching form field data", e);
+            return [];
+        }
+    };
+
+    const fetchAndApplyPreferences = async () => {
+        try {
+            const response = await apiClient.get<Record<string, SavedPrefAPI>>(
+                API_ROUTES.USER.SCENARIO_PREFERENCES
+            );
+            const raw = response.data;
+            if (!raw) return;
+
+            const mapped: Record<string, ScenarioFormData> = {};
+            Object.entries(raw).forEach(([key, val]) => {
+                mapped[key] = {
+                    subscriberUrl: val.subscriber_url,
+                    domain: val.domain,
+                    version: val.version,
+                    usecaseId: val.usecase_id,
+                    npType: val.np_type,
+                    env: val.env,
+                };
+            });
+            setSavedPreferences(mapped);
+        } catch {
+            // Not logged in or no saved preferences — leave defaults
+            console.warn("Could not fetch saved preferences, possibly not logged in");
         }
     };
 
     useEffect(() => {
-        fetchFormFieldData();
         const storedSessions = localStorage.getItem("flowTestingSessions");
         if (storedSessions) {
             setExistingSessions(JSON.parse(storedSessions));
         }
+        Promise.all([fetchFormFieldData(), fetchAndApplyPreferences()]).finally(() =>
+            setIsInitializing(false)
+        );
     }, []);
 
     function fetchSessionData(sessId: string) {
@@ -281,14 +326,144 @@ export default function FlowContent() {
                                 </div>
 
                                 <div className="px-4 py-4 bg-slate-50/40">
-                                    <InitialFlowForm
-                                        formData={formData}
-                                        onSubmitHandler={onSubmitHandler}
-                                        dynamicList={dynamicList}
-                                        setDyanmicValue={setDyanmicValue}
-                                        dynamicValue={dynamicValue}
-                                        setDynamicList={setDynamicList}
-                                    />
+                                    {isInitializing ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <span className="text-gray-400 text-sm">
+                                                Loading...
+                                            </span>
+                                        </div>
+                                    ) : Object.keys(savedPreferences).length > 0 &&
+                                      !showManualForm ? (
+                                        <div className="space-y-4">
+                                            {/* Config picker */}
+                                            <div className="flex flex-col gap-1">
+                                                <label className="text-sm font-bold text-sky-700 ml-1">
+                                                    Select Saved Configuration
+                                                </label>
+                                                <select
+                                                    className="w-full bg-gray-50 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:border-blue-500 hover:border-blue-300 shadow-sm"
+                                                    value={selectedConfigKey}
+                                                    onChange={(e) => {
+                                                        setSelectedConfigKey(e.target.value);
+                                                        setSelectedUsecaseId("");
+                                                    }}
+                                                >
+                                                    <option value="" disabled>
+                                                        Select a configuration
+                                                    </option>
+                                                    {Object.entries(savedPreferences).map(
+                                                        ([key, config]) => (
+                                                            <option key={key} value={key}>
+                                                                {config.domain} | {config.version} |{" "}
+                                                                {config.npType}
+                                                            </option>
+                                                        )
+                                                    )}
+                                                </select>
+                                            </div>
+
+                                            {/* Usecase picker — shown after config is selected */}
+                                            {selectedConfigKey &&
+                                                (() => {
+                                                    const cfg = savedPreferences[selectedConfigKey];
+                                                    const domainData = dynamicList.domain.find(
+                                                        (d) => d.key === cfg.domain
+                                                    );
+                                                    const versionData = (
+                                                        domainData?.version as DomainVersionWithUsecase[]
+                                                    )?.find((v) => v.key === cfg.version);
+                                                    const usecaseOptions =
+                                                        versionData?.usecase || [];
+                                                    return (
+                                                        <div className="space-y-3">
+                                                            <div className="text-xs text-gray-500 px-1">
+                                                                <span className="font-medium text-gray-600">
+                                                                    URL:
+                                                                </span>{" "}
+                                                                {cfg.subscriberUrl}
+                                                            </div>
+                                                            <div className="flex flex-col gap-1">
+                                                                <label className="text-sm font-bold text-sky-700 ml-1">
+                                                                    Select Use Case{" "}
+                                                                    <span className="text-red-500">
+                                                                        *
+                                                                    </span>
+                                                                </label>
+                                                                <select
+                                                                    className="w-full bg-gray-50 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:border-blue-500 hover:border-blue-300 shadow-sm"
+                                                                    value={selectedUsecaseId}
+                                                                    onChange={(e) =>
+                                                                        setSelectedUsecaseId(
+                                                                            e.target.value
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <option value="" disabled>
+                                                                        Select a use case
+                                                                    </option>
+                                                                    {usecaseOptions.map((uc) => (
+                                                                        <option key={uc} value={uc}>
+                                                                            {uc}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+
+                                            <div className="flex items-center gap-4 pt-1">
+                                                <button
+                                                    type="button"
+                                                    disabled={
+                                                        !selectedConfigKey ||
+                                                        !selectedUsecaseId ||
+                                                        isFormSubmitted
+                                                    }
+                                                    onClick={() =>
+                                                        selectedConfigKey &&
+                                                        selectedUsecaseId &&
+                                                        onSubmitHandler({
+                                                            ...savedPreferences[selectedConfigKey],
+                                                            usecaseId: selectedUsecaseId,
+                                                        })
+                                                    }
+                                                    className="flex items-center justify-center px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold text-sm rounded focus:outline-none transition-all duration-300"
+                                                >
+                                                    {isFormSubmitted
+                                                        ? "Creating..."
+                                                        : "Create New Session"}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="text-sm text-sky-600 hover:underline"
+                                                    onClick={() => setShowManualForm(true)}
+                                                >
+                                                    Fill manually instead
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {showManualForm && (
+                                                <button
+                                                    type="button"
+                                                    className="text-sm text-sky-600 hover:underline mb-3 block"
+                                                    onClick={() => setShowManualForm(false)}
+                                                >
+                                                    ← Back to saved configs
+                                                </button>
+                                            )}
+                                            <InitialFlowForm
+                                                formData={formData}
+                                                onSubmitHandler={onSubmitHandler}
+                                                dynamicList={dynamicList}
+                                                setDyanmicValue={setDyanmicValue}
+                                                dynamicValue={dynamicValue}
+                                                setDynamicList={setDynamicList}
+                                            />
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <PreviousSessionsPanel

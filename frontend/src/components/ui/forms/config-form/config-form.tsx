@@ -439,7 +439,7 @@ export default function FormConfig({
 
     return (
         <FormComponent
-            defaultValues={defaultValues}
+            defaultValues={defaultValues as Record<string, string>}
             className="h-[500px] overflow-scroll"
             onSubmit={onSubmit}
             triggerSubmit={!isNoFieldVisible}

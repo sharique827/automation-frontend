@@ -5,6 +5,7 @@ import { LuLogOut } from "react-icons/lu";
 import { UserContext } from "@context/userContext";
 import JsonDataForm from "@components/registry-components/subscriber-form";
 import { AuthService } from "@services/authService";
+import ScenarioPreferencesForm from "./scenario-preferences-form";
 
 import { ROUTES } from "@constants/routes";
 
@@ -71,6 +72,7 @@ const UserProfile = () => {
                 </div>
 
                 <JsonDataForm />
+                <ScenarioPreferencesForm />
             </div>
         </div>
     );

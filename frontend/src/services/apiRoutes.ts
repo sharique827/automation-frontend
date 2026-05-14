@@ -59,6 +59,12 @@ export const API_ROUTES = {
         EXCHANGE: "/auth/exchange",
     },
 
+    USER: {
+        SCENARIO_PREFERENCES: "/user/scenario-preferences",
+        SCENARIO_PREFERENCE_BY_KEY: (configKey: string) =>
+            `/user/scenario-preferences/${configKey}`,
+    },
+
     HEALTH: {
         API_SERVICE: "/health/api-service",
     },

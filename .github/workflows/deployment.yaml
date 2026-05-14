@@ -93,6 +93,8 @@ jobs:
           echo "VITE_DEVELOPER_GUIDE_BACKEND_URL=${{ vars.VITE_DEVELOPER_GUIDE_BACKEND_URL }}" >> \$REPO_DIR/frontend/.env
           echo "VITE_ENVIRONMENT=${{ vars.VITE_ENVIRONMENT }}" >> \$REPO_DIR/frontend/.env
           echo "VITE_LOAD_TEST_BACKEND_URL=${{ vars.VITE_LOAD_TEST_BACKEND_URL }}" >> \$REPO_DIR/frontend/.env
+          echo "DEVELOPER_GUIDE_SERVICE =${{ vars.DEVELOPER_GUIDE_SERVICE }}" >> \$REPO_DIR/backend/.env
+
           EOF
 
       - name: Verify docker-compose.yml files
@@ -204,6 +206,7 @@ jobs:
           echo "VITE_ENVIRONMENT=${{ vars.VITE_ENVIRONMENT }}" >> \$REPO_DIR/frontend/.env
           echo "VITE_LOAD_TEST_BACKEND_URL=${{ vars.VITE_LOAD_TEST_BACKEND_URL }}" >> \$REPO_DIR/frontend/.env
           echo "VITE_CHATBOT_MCP_BASE_URL=${{ vars.VITE_CHATBOT_MCP_BASE_URL }}" >> \$REPO_DIR/frontend/.env
+          echo "DEVELOPER_GUIDE_SERVICE =${{ vars.DEVELOPER_GUIDE_SERVICE }}" >> \$REPO_DIR/backend/.env
 
           
 

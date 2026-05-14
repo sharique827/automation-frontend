@@ -66,7 +66,7 @@ export default function InitialFlowForm({
         );
 
         return (
-            <GenericForm defaultValues={formData.current} onSubmit={onSubmit}>
+            <GenericForm defaultValues={formData.current} onSubmit={onSubmit} submitAlign="right">
                 <FormSelect
                     name="config"
                     label="Select Configured Domain"
@@ -178,7 +178,11 @@ export default function InitialFlowForm({
     }
 
     return (
-        <GenericForm defaultValues={formData.current} onSubmit={onSubmitHandler}>
+        <GenericForm
+            defaultValues={formData.current}
+            onSubmit={onSubmitHandler}
+            submitAlign="right"
+        >
             <FormInput
                 label="Enter Subscriber Url"
                 name="subscriberUrl"

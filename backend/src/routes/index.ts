@@ -7,12 +7,14 @@ import configRoutes from "./configRoute";
 import sellerRoutes from "./sellerRoutes"; // Import seller routes
 import imageRoutes from "./imageRoutes"; // Import image routes
 import finvuRoutes from "./finvu-routes"; // Import Finvu routes
+import formRoutes from "./form-routes"; // Import Form routes
 
 import guideRoutes from "./guideRoutes";
 import authRoutes from "./gitLoginRoute"; // Import authentication routes
 import healthRoutes from "./healthRoutes"; // Import health check routes
 import devGuideRoutes from "./devGuideRoutes";
 import aiProxyRoutes from "./aiProxyRoutes";
+import scenarioPreferencesRoutes from "./scenarioPreferencesRoutes";
 const router = Router();
 
 // Mount session-related routes
@@ -27,8 +29,10 @@ router.use("/images", imageRoutes); // Add image routes
 
 // Mount Finvu routes (no prefix - routes have full paths)
 router.use(finvuRoutes);
+router.use(formRoutes);
 
 router.use("/auth", authRoutes); // Mount authentication routes
+router.use("/user", scenarioPreferencesRoutes);
 router.use("/guide", guideRoutes);
 router.use("/health", healthRoutes);
 router.use("/dev-guide", devGuideRoutes);

@@ -8,6 +8,7 @@ type GenericFormProps<T extends FieldValues> = {
     onSubmit: (data: T) => Promise<void>;
     className?: string;
     triggerSubmit?: boolean;
+    submitAlign?: "left" | "right";
 };
 
 const GenericForm = <T extends FieldValues = FieldValues>({
@@ -16,6 +17,7 @@ const GenericForm = <T extends FieldValues = FieldValues>({
     onSubmit,
     className,
     triggerSubmit = false,
+    submitAlign = "left",
 }: GenericFormProps<T>) => {
     const {
         register,
@@ -54,7 +56,9 @@ const GenericForm = <T extends FieldValues = FieldValues>({
             {React.Children.map(children, (child) =>
                 React.cloneElement(child as React.ReactElement, { register, errors, setValue })
             )}
-            <LoadingButton type="submit" buttonText="Submit" isLoading={isLoading} />
+            <div className={submitAlign === "right" ? "flex justify-end" : undefined}>
+                <LoadingButton type="submit" buttonText="Submit" isLoading={isLoading} />
+            </div>
         </form>
     );
 };

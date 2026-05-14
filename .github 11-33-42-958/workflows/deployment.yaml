@@ -87,6 +87,7 @@ jobs:
           echo "AWS_REGION =${{ secrets.AWS_REGION }}" >> \$REPO_DIR/backend/.env
           echo "S3_BUCKET_NAME =${{ secrets.S3_BUCKET_NAME }}" >> \$REPO_DIR/backend/.env
           echo "S3_FOLDER =${{ secrets.S3_FOLDER }}" >> \$REPO_DIR/backend/.env
+          echo "DEVELOPER_GUIDE_SERVICE =${{ vars.DEVELOPER_GUIDE_SERVICE }}" >> \$REPO_DIR/backend/.env
           EOF
 
       - name: Verify docker-compose.yml files
@@ -190,6 +191,7 @@ jobs:
           echo "AWS_REGION =${{ secrets.AWS_REGION }}" >> \$REPO_DIR/backend/.env
           echo "S3_BUCKET_NAME =${{ secrets.S3_BUCKET_NAME }}" >> \$REPO_DIR/backend/.env
           echo "S3_FOLDER =${{ secrets.S3_FOLDER }}" >> \$REPO_DIR/backend/.env
+          echo "DEVELOPER_GUIDE_SERVICE =${{ vars.DEVELOPER_GUIDE_SERVICE }}" >> \$REPO_DIR/backend/.env
           
           
           
