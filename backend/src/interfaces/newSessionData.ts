@@ -50,6 +50,7 @@ export interface SessionCache {
     // against session_id
     transactionIds: string[];
     flowMap: Record<FlowId, TransactionId | undefined>;
+    lastFlowMap?: Record<FlowId, TransactionId | undefined>;
     npType: "BAP" | "BPP";
     domain: string;
     version: string;
