@@ -1,11 +1,11 @@
-import { useState, useMemo } from "react";
+import { FC, useMemo, useState } from "react";
 import { FaBook, FaCode } from "react-icons/fa";
 import Header from "@pages/auth-header/Header";
 import Tabs from "@pages/auth-header/Tabs";
 import Tab from "@pages/auth-header/Tab";
 import { TabType, TabConfig } from "@pages/auth-header/types";
 
-const AuthHeader = () => {
+const DeveloperGuideAuthToolsContent: FC = () => {
     const [activeTab, setActiveTab] = useState<TabType>("overview");
 
     const tabs: TabConfig[] = useMemo(
@@ -17,7 +17,7 @@ const AuthHeader = () => {
     );
 
     return (
-        <div className="min-h-screen bg-white">
+        <div className="min-h-full">
             <Header
                 tabs={
                     <Tabs
@@ -28,11 +28,11 @@ const AuthHeader = () => {
                     />
                 }
             />
-            <div className="max-w-7xl mx-auto px-6 md:px-10 py-8">
+            <div className="px-6 md:px-10 py-8">
                 <Tab activeTab={activeTab} />
             </div>
         </div>
     );
 };
 
-export default AuthHeader;
+export default DeveloperGuideAuthToolsContent;

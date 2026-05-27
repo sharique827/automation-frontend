@@ -1,29 +1,5 @@
 import { type FC, useMemo, useState } from "react";
-
-interface TocEntry {
-    level: 2 | 3;
-    text: string;
-    id: string;
-}
-
-function slugify(text: string): string {
-    return text
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, "")
-        .trim()
-        .replace(/\s+/g, "-");
-}
-
-function extractToc(markdown: string): TocEntry[] {
-    const toc: TocEntry[] = [];
-    for (const line of markdown.split("\n")) {
-        const h2 = /^## (.+)/.exec(line);
-        const h3 = /^### (.+)/.exec(line);
-        if (h2) toc.push({ level: 2, text: h2[1].trim(), id: slugify(h2[1].trim()) });
-        else if (h3) toc.push({ level: 3, text: h3[1].trim(), id: slugify(h3[1].trim()) });
-    }
-    return toc;
-}
+import { extractMarkdownToc } from "@utils/markdownToc";
 
 interface TableOfContentsProps {
     content: string;
@@ -34,7 +10,7 @@ interface TableOfContentsProps {
 }
 
 const TableOfContents: FC<TableOfContentsProps> = ({ content, className, style }) => {
-    const toc = useMemo(() => extractToc(content), [content]);
+    const toc = useMemo(() => extractMarkdownToc(content), [content]);
     const [activeId, setActiveId] = useState("");
 
     if (toc.length === 0) return null;

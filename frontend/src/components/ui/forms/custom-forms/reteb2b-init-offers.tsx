@@ -119,7 +119,11 @@ export default function ReteB2BInitOffers({
 
     const [form, setForm] = useState<RetailerCustomerInput>({
         type: "new",
-        city_code: "",
+        city_code: "std:080",
+        provider_tax_number: "ABCDE1234E",
+        shop_name: "Default Shop",
+        address: "Default Address",
+        state_code: "KA",
         available_offers: [],
         items: [
             {
@@ -134,6 +138,7 @@ export default function ReteB2BInitOffers({
     // --- Dynamic Validation Helper ---
     const isDynamicCategoryMatch = useCallback(
         (itemCatId: string, itemNameStr: string, ruleCategoryIds: string[]) => {
+            if (ruleCategoryIds?.length === 0) return true;
             const catName = (
                 itemCatId && categoryNames[itemCatId] ? categoryNames[itemCatId] : itemCatId || ""
             ).toLowerCase();
@@ -241,12 +246,13 @@ export default function ReteB2BInitOffers({
                     // Category Check
                     const catId = itemCategories[item.itemId];
                     const itemName = itemNames[item.itemId] || "";
-                    const catMatch =
-                        hasCategoryRules &&
-                        isDynamicCategoryMatch(catId, itemName, rule.categoryIds);
+                    let catMatch = true;
+                    if (hasCategoryRules) {
+                        catMatch = isDynamicCategoryMatch(catId, itemName, rule.categoryIds);
+                    }
 
                     // Valid if ANY of the criteria match (Location OR Item OR Category)
-                    return locMatch || itemMatch || catMatch;
+                    return locMatch && itemMatch && catMatch;
                 });
 
                 if (!hasCompatibleItem) {
@@ -293,12 +299,13 @@ export default function ReteB2BInitOffers({
                     // Category Check
                     const catId = itemCategories[item.itemId];
                     const itemName = itemNames[item.itemId] || "";
-                    const catMatch =
-                        hasCategoryRules &&
-                        isDynamicCategoryMatch(catId, itemName, rule.categoryIds);
+                    let catMatch = true;
+                    if (hasCategoryRules) {
+                        catMatch = isDynamicCategoryMatch(catId, itemName, rule.categoryIds);
+                    }
 
                     // Valid if ANY of the criteria match (Location OR Item OR Category)
-                    return locMatch || itemMatch || catMatch;
+                    return locMatch && itemMatch && catMatch;
                 }
                 return true;
             });
@@ -661,7 +668,7 @@ export default function ReteB2BInitOffers({
                         <option value="new">New Retailer</option>
                         <option value="existing">Existing Retailer</option>
                     </select>
-                    {label("Customer ID", form.type === "new")}
+                    {label("Customer ID", form.type !== "new")}
                     <input
                         value={form.customer_id}
                         onChange={(e) => handleChange("customer_id", e.target.value)}
@@ -697,19 +704,24 @@ export default function ReteB2BInitOffers({
                         onChange={(e) => handleChange("provider_tax_number", e.target.value)}
                         className={inputStyle}
                     />
-                    {label("Shop Name", form.type === "new")}
+                    {label("Shop Name", true)}
                     <input
                         value={form.shop_name}
                         onChange={(e) => handleChange("shop_name", e.target.value)}
                         className={inputStyle}
                     />
-                    {label("Address", form.type === "new")}
+                    {label("Address", true)}
                     <input
                         value={form.address}
                         onChange={(e) => handleChange("address", e.target.value)}
                         className={inputStyle}
                     />
-
+                    {label("State Code", true)}
+                    <input
+                        value={form.state_code}
+                        onChange={(e) => handleChange("state_code", e.target.value)}
+                        className={inputStyle}
+                    />
                     {/* ITEMS SECTION */}
                     <div>
                         <h3 className="font-bold">Items</h3>

@@ -22,8 +22,26 @@ import ErrorCodesTable from "./ErrorCodesTable";
 import SupportedActionsView from "./SupportedActionsView";
 import ChangelogView from "./ChangelogView";
 import type { OpenAPISpecification, FlowEntry, BuildEntry, ChangelogEntry } from "./types";
+import { useDeveloperGuideShell } from "./layout/DeveloperGuideShellContext";
+import DeveloperGuideNavBackButton from "./layout/DeveloperGuideNavBackButton";
 
 type TopLevelView = "flows" | "error-codes" | "supported-actions" | "docs" | "changelog";
+
+const TOP_LEVEL_VIEWS: TopLevelView[] = [
+    "flows",
+    "error-codes",
+    "supported-actions",
+    "docs",
+    "changelog",
+];
+
+function parseActiveView(searchParams: URLSearchParams): TopLevelView {
+    const viewParam = searchParams.get("view");
+    if (viewParam && TOP_LEVEL_VIEWS.includes(viewParam as TopLevelView)) {
+        return viewParam as TopLevelView;
+    }
+    return "docs";
+}
 
 const DeveloperGuideFlowPage: FC = () => {
     const {
@@ -37,8 +55,10 @@ const DeveloperGuideFlowPage: FC = () => {
     }>();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+    const { inShell } = useDeveloperGuideShell();
 
-    const [activeView, setActiveView] = useState<TopLevelView>("flows");
+    const activeView = useMemo(() => parseActiveView(searchParams), [searchParams]);
+
     const [selectedFlow, setSelectedFlow] = useState<string>("");
     const [selectedFlowAction, setSelectedFlowAction] = useState<string>("");
     const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -47,19 +67,22 @@ const DeveloperGuideFlowPage: FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
 
-    // Lazy load states
-    const [lazyDocs, setLazyDocs] = useState<Record<string, string> | null>(null);
-    const [docsLoading, setDocsLoading] = useState(false);
     const [lazyChangelog, setLazyChangelog] = useState<ChangelogEntry[] | null>(null);
     const [changelogLoading, setChangelogLoading] = useState(false);
 
-    const docsFetched = useRef(false);
     const changelogFetched = useRef(false);
     const didInitialSync = useRef(false);
+    const prevRouteKeyRef = useRef<string | null>(null);
 
     const domainKey = domainParam != null ? decodeURIComponent(domainParam) : "";
     const versionKey = versionParam != null ? decodeURIComponent(versionParam) : "";
     const slug = useCaseSlug ? decodeURIComponent(useCaseSlug) : "";
+    const routeKey = `${domainKey}|${versionKey}|${slug}`;
+
+    const apiUsecase = useMemo(
+        () => getUsecaseLabelFromBuilds(builds, domainKey, versionKey, slug) ?? slug,
+        [builds, domainKey, versionKey, slug]
+    );
 
     const flows: FlowEntry[] = useMemo(() => specData?.["x-flows"] ?? [], [specData]);
     const errorCodes = specData?.["x-errorcodes"];
@@ -68,32 +91,57 @@ const DeveloperGuideFlowPage: FC = () => {
     const hasSupportedActions =
         !!supportedActions && Object.keys(supportedActions.supportedActions ?? {}).length > 0;
 
-    // Load builds + spec data
+    // Reset tab + flow state only when domain / version / use case route changes
     useEffect(() => {
+        if (prevRouteKeyRef.current === routeKey) return;
+        prevRouteKeyRef.current = routeKey;
+
+        setSelectedFlow("");
+        setSelectedFlowAction("");
+        setLazyChangelog(null);
+        setSpecData(null);
+        changelogFetched.current = false;
+        didInitialSync.current = false;
+
+        setSearchParams(
+            (prev) => {
+                const next = new URLSearchParams(prev);
+                next.set("view", "docs");
+                next.delete("flow");
+                next.delete("action");
+                return next;
+            },
+            { replace: true }
+        );
+    }, [routeKey, setSearchParams]);
+
+    // Load builds then spec (resolve API usecase label from builds for correct flows/meta)
+    useEffect(() => {
+        if (!domainKey || !versionKey) return;
+
         let cancelled = false;
         const load = async () => {
             setIsLoading(true);
             setNotFound(false);
             try {
-                const [buildsData, spec] = await Promise.all([
-                    fetchBuilds(),
-                    domainKey && versionKey
-                        ? fetchSpec(domainKey, versionKey, {
-                              include: ["meta", "flows", "attributes", "validations"],
-                              usecase: slug || undefined,
-                          })
-                        : null,
-                ]);
+                const buildsData = await fetchBuilds();
+                if (cancelled) return;
+
+                const resolvedUsecase =
+                    getUsecaseLabelFromBuilds(buildsData, domainKey, versionKey, slug) ?? slug;
+
+                const spec = await fetchSpec(domainKey, versionKey, {
+                    include: ["meta", "flows", "attributes", "validations", "docs"],
+                    usecase: resolvedUsecase || undefined,
+                });
+
                 if (cancelled) return;
                 setBuilds(buildsData);
-                if (spec) {
-                    setSpecData(spec);
-                } else {
-                    setNotFound(true);
-                }
+                setSpecData(spec);
             } catch {
                 if (!cancelled) {
                     setBuilds([]);
+                    setSpecData(null);
                     setNotFound(true);
                 }
             } finally {
@@ -106,34 +154,25 @@ const DeveloperGuideFlowPage: FC = () => {
         };
     }, [domainKey, versionKey, slug]);
 
-    // Initial sync of TopLevelView from searchParams — runs once on mount only.
-    // IMPORTANT: Only read from `view=` param, never from `tab=` (that's used
-    // internally by FlowInformation for preview/request/response tabs).
+    // Fallback: fetch docs separately if not included in spec payload
     useEffect(() => {
-        const viewParam = searchParams.get("view");
-        const validViews: TopLevelView[] = [
-            "flows",
-            "error-codes",
-            "supported-actions",
-            "docs",
-            "changelog",
-        ];
-        if (viewParam && validViews.includes(viewParam as TopLevelView)) {
-            setActiveView(viewParam as TopLevelView);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // run once on mount
+        if (isLoading || !domainKey || !versionKey || !specData) return;
 
-    // Lazy load Docs
-    const loadDocsIfNeeded = useCallback(() => {
-        if (docsFetched.current || !domainKey || !versionKey) return;
-        docsFetched.current = true;
-        setDocsLoading(true);
-        fetchDocs(domainKey, versionKey)
-            .then((result) => setLazyDocs(result))
-            .catch(() => setLazyDocs({}))
-            .finally(() => setDocsLoading(false));
-    }, [domainKey, versionKey]);
+        const existing = specData["x-docs"];
+        if (existing && Object.keys(existing).length > 0) return;
+
+        let cancelled = false;
+        fetchDocs(domainKey, versionKey, { usecase: apiUsecase || undefined })
+            .then((docs) => {
+                if (cancelled || Object.keys(docs).length === 0) return;
+                setSpecData((prev) => (prev ? { ...prev, "x-docs": docs } : prev));
+            })
+            .catch(() => {});
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isLoading, specData, domainKey, versionKey, apiUsecase]);
 
     // Lazy load Changelog
     const loadChangelogIfNeeded = useCallback(() => {
@@ -146,37 +185,38 @@ const DeveloperGuideFlowPage: FC = () => {
             .finally(() => setChangelogLoading(false));
     }, [domainKey, versionKey]);
 
-    // Trigger lazy loads when active view changes
     useEffect(() => {
-        if (activeView === "docs") loadDocsIfNeeded();
         if (activeView === "changelog") loadChangelogIfNeeded();
-    }, [activeView, loadDocsIfNeeded, loadChangelogIfNeeded]);
+    }, [activeView, loadChangelogIfNeeded]);
 
-    // Sync flow/action selection strictly for the Flows tab interior
+    // Sync flow/action selection when Flows tab is active
     useEffect(() => {
-        if (isLoading || !specData || flows.length === 0) return;
+        if (activeView !== "flows" || isLoading || !specData || flows.length === 0) return;
 
         const urlFlowId = searchParams.get("flow");
         const matchingFlow =
             (urlFlowId ? flows.find((f) => f.flowId === urlFlowId) : null) ??
-            flows.find((f) => f.usecase === slug) ??
+            flows.find((f) => f.usecase === apiUsecase || f.usecase === slug) ??
             flows[0];
         if (!matchingFlow) return;
 
         const flowId = matchingFlow.flowId;
-        setSelectedFlow(flowId);
-
         const urlAction = searchParams.get("action");
         const steps = matchingFlow.config?.steps ?? [];
         const urlStep = urlAction ? steps.find((s) => getActionId(s) === urlAction) : undefined;
         const targetStep = urlStep ?? steps[0];
         const resolvedAction = targetStep ? getActionId(targetStep) : "";
 
+        setSelectedFlow(flowId);
         setSelectedFlowAction(resolvedAction || "");
 
-        // Initial setup for URL
         setSearchParams(
             (prev) => {
+                const currentFlow = prev.get("flow");
+                const currentAction = prev.get("action") ?? "";
+                if (currentFlow === flowId && currentAction === (resolvedAction || "")) {
+                    return prev;
+                }
                 const next = new URLSearchParams(prev);
                 next.set("flow", flowId);
                 if (resolvedAction) next.set("action", resolvedAction);
@@ -187,12 +227,11 @@ const DeveloperGuideFlowPage: FC = () => {
         );
 
         didInitialSync.current = true;
-    }, [isLoading, specData, flows, slug]);
+        // searchParams read once per sync; omit from deps to avoid update loops
+    }, [activeView, isLoading, specData, flows, slug, apiUsecase, setSearchParams]);
 
-    // Keep URL in sync when user navigates via sidebar inside Flows tab
     useEffect(() => {
-        if (!didInitialSync.current) return;
-        if (!selectedFlow) return;
+        if (activeView !== "flows" || !didInitialSync.current || !selectedFlow) return;
         setSearchParams(
             (prev) => {
                 const next = new URLSearchParams(prev);
@@ -203,14 +242,13 @@ const DeveloperGuideFlowPage: FC = () => {
             },
             { replace: true }
         );
-    }, [selectedFlow, selectedFlowAction, setSearchParams]);
+    }, [activeView, selectedFlow, selectedFlowAction, setSearchParams]);
 
     const handleBack = () => {
         navigate(ROUTES.DEVELOPER_GUIDE);
     };
 
     const handleViewChange = (view: TopLevelView) => {
-        setActiveView(view);
         setSearchParams(
             (prev) => {
                 const next = new URLSearchParams(prev);
@@ -228,7 +266,11 @@ const DeveloperGuideFlowPage: FC = () => {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-white">
+            <div
+                className={`flex items-center justify-center bg-white ${
+                    inShell ? "min-h-[40vh]" : "min-h-screen"
+                }`}
+            >
                 <Loader />
             </div>
         );
@@ -236,7 +278,11 @@ const DeveloperGuideFlowPage: FC = () => {
 
     if (notFound || !domainKey || !versionKey || !slug) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-white px-6">
+            <div
+                className={`flex flex-col items-center justify-center bg-white px-6 ${
+                    inShell ? "min-h-[40vh]" : "min-h-screen"
+                }`}
+            >
                 <p className="text-gray-600 mb-4">Use case not found for this domain/version.</p>
                 <button
                     type="button"
@@ -249,80 +295,106 @@ const DeveloperGuideFlowPage: FC = () => {
         );
     }
 
-    // Determine Docs data
-    const docs = lazyDocs ?? specData?.["x-docs"];
+    const docs = specData?.["x-docs"];
     const isDocsEmpty = !docs || Object.keys(docs).length === 0;
 
     return (
-        <div className="relative bg-white min-h-screen flex flex-col">
-            {/* Header */}
-            <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-gray-200">
-                <div className="px-6 h-14 flex items-center justify-between gap-4">
-                    <nav className="flex items-center gap-1.5 text-sm min-w-0">
-                        <button
-                            type="button"
-                            onClick={handleBack}
-                            className="flex items-center gap-1.5 text-gray-500 hover:text-sky-600 transition-colors duration-150 group flex-shrink-0"
-                        >
-                            <FiArrowLeft
-                                size={13}
-                                className="group-hover:-translate-x-0.5 transition-transform duration-150"
-                            />
-                            <span>Developer Guide</span>
-                        </button>
-                        {usecaseLabel && (
-                            <>
-                                <FiChevronRight size={13} className="text-gray-300 flex-shrink-0" />
-                                <span className="text-gray-400 truncate hidden sm:block">
-                                    {domainKey}
-                                </span>
-                                <FiChevronRight
-                                    size={13}
-                                    className="text-gray-300 flex-shrink-0 hidden sm:block"
+        <div
+            className={`relative bg-white flex flex-col ${
+                inShell ? "min-h-0" : "min-h-screen top-4"
+            }`}
+        >
+            <header
+                className={`z-20 bg-white/90 backdrop-blur-md border-b border-gray-200 shadow-sm py-4 ${
+                    inShell ? "sticky top-0" : "sticky top-0"
+                }`}
+            >
+                <div className="px-4 md:px-6 h-14 grid grid-cols-[1fr_auto_1fr] items-center gap-4 mt-6">
+                    <nav className="flex items-center gap-1.5 text-sm min-w-0 justify-self-start">
+                        {inShell && <DeveloperGuideNavBackButton />}
+                        {!inShell && (
+                            <button
+                                type="button"
+                                onClick={handleBack}
+                                className="flex items-center gap-1.5 text-gray-500 hover:text-sky-600 transition-colors duration-150 group flex-shrink-0"
+                            >
+                                <FiArrowLeft
+                                    size={15}
+                                    className="group-hover:-translate-x-0.5 transition-transform duration-150"
                                 />
                                 <span className="font-semibold text-gray-800 truncate">
-                                    {usecaseLabel}
+                                    Developer Guide
                                 </span>
+                            </button>
+                        )}
+                        {(inShell || usecaseLabel) && (
+                            <>
+                                {!inShell && usecaseLabel && (
+                                    <FiChevronRight size={15} className="flex-shrink-0" />
+                                )}
+                                <span className="font-semibold text-gray-800 truncate">
+                                    {domainKey}
+                                </span>
+                                {versionKey && (
+                                    <>
+                                        <FiChevronRight
+                                            size={15}
+                                            className="flex-shrink-0 hidden sm:block"
+                                        />
+                                        <span className="font-semibold text-gray-800 truncate">
+                                            v{versionKey}
+                                        </span>
+                                    </>
+                                )}
+                                {usecaseLabel && (
+                                    <>
+                                        <FiChevronRight
+                                            size={15}
+                                            className="flex-shrink-0 hidden sm:block"
+                                        />
+                                        <span className="font-semibold text-gray-800 truncate">
+                                            {usecaseLabel}
+                                        </span>
+                                    </>
+                                )}
                             </>
                         )}
                     </nav>
-                    {versionKey && (
-                        <span className="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-xs font-mono font-semibold">
-                            v{versionKey}
-                        </span>
-                    )}
-                </div>
-
-                {/* Top Level Nav Tabs */}
-                <div className="px-6 pt-3 pb-2 bg-white shadow-sm flex items-center justify-end">
-                    <SegmentedTabs<TopLevelView>
-                        active={activeView}
-                        onChange={handleViewChange}
-                        tabs={[
-                            { id: "flows", label: "Flows", icon: FiList, visible: true },
-                            {
-                                id: "error-codes",
-                                label: "Error Codes",
-                                icon: FiAlertTriangle,
-                                visible: hasErrorCodes,
-                            },
-                            {
-                                id: "supported-actions",
-                                label: "Actions",
-                                icon: FiZap,
-                                visible: hasSupportedActions,
-                            },
-                            { id: "docs", label: "Docs", icon: FiFileText, visible: true },
-                            { id: "changelog", label: "Changelog", icon: FiClock, visible: true },
-                        ]}
-                    />
+                    <div className="justify-self-center relative z-10">
+                        <SegmentedTabs<TopLevelView>
+                            active={activeView}
+                            onChange={handleViewChange}
+                            tabs={[
+                                { id: "docs", label: "Docs", icon: FiFileText, visible: true },
+                                { id: "flows", label: "Flows", icon: FiList, visible: true },
+                                {
+                                    id: "error-codes",
+                                    label: "Error Codes",
+                                    icon: FiAlertTriangle,
+                                    visible: hasErrorCodes,
+                                },
+                                {
+                                    id: "supported-actions",
+                                    label: "Actions",
+                                    icon: FiZap,
+                                    visible: hasSupportedActions,
+                                },
+                                {
+                                    id: "changelog",
+                                    label: "Changelog",
+                                    icon: FiClock,
+                                    visible: true,
+                                },
+                            ]}
+                        />
+                    </div>
+                    <div aria-hidden="true" />
                 </div>
             </header>
 
             <div className="flex-grow flex items-start gap-0 relative">
                 {activeView === "flows" ? (
                     <>
-                        {/* Sidebar strictly for Flows */}
                         <div
                             className={`sticky top-24 self-start flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out ${
                                 sidebarOpen ? "w-[380px]" : "w-0"
@@ -388,7 +460,6 @@ const DeveloperGuideFlowPage: FC = () => {
                         </div>
                     </>
                 ) : (
-                    /* Content area for Non-Flow top-level tabs */
                     <div className="flex-1 min-w-0 p-8 max-w-9xl mx-auto w-full">
                         {activeView === "error-codes" &&
                             (hasErrorCodes && errorCodes ? (
@@ -407,11 +478,7 @@ const DeveloperGuideFlowPage: FC = () => {
                                 </p>
                             ))}
                         {activeView === "docs" &&
-                            (docsLoading ? (
-                                <div className="flex items-center justify-center py-16">
-                                    <Loader />
-                                </div>
-                            ) : isDocsEmpty ? (
+                            (isDocsEmpty ? (
                                 <div className="rounded-xl border border-slate-200 bg-slate-50 py-12 text-center">
                                     <p className="text-sm text-slate-400">
                                         No documentation available.

@@ -15,6 +15,7 @@ import healthRoutes from "./healthRoutes"; // Import health check routes
 import devGuideRoutes from "./devGuideRoutes";
 import aiProxyRoutes from "./aiProxyRoutes";
 import scenarioPreferencesRoutes from "./scenarioPreferencesRoutes";
+import reportsRoutes from "./reportsRoutes";
 const router = Router();
 
 // Mount session-related routes
@@ -33,6 +34,7 @@ router.use(formRoutes);
 
 router.use("/auth", authRoutes); // Mount authentication routes
 router.use("/user", scenarioPreferencesRoutes);
+router.use("/reports", reportsRoutes);
 router.use("/guide", guideRoutes);
 router.use("/health", healthRoutes);
 router.use("/dev-guide", devGuideRoutes);

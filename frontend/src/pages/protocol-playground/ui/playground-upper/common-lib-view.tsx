@@ -1,8 +1,8 @@
-import { useContext } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { PlaygroundContext } from "../../context/playground-context";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { DarkSkyBlueTheme } from "../editor-themes";
-import { MockRunner } from "@ondc/automation-mock-runner/dist/lib/MockRunner";
+import { decodeBase64 } from "../../utils/base64";
 
 export default function CommonLibView() {
     const playgroundContext = useContext(PlaygroundContext);
@@ -10,19 +10,41 @@ export default function CommonLibView() {
     const getEditorContent = () => {
         try {
             const value = playgroundContext.config?.helperLib || "";
-            return MockRunner.decodeBase64(value);
+            return decodeBase64(value);
         } catch (e) {
             console.error("Error decoding helper library content:", e);
             return "Error decoding helper library content.";
         }
     };
 
-    // Handle editor changes
+    const pendingRef = useRef<{ timer: number | null; flush: (() => void) | null }>({
+        timer: null,
+        flush: null,
+    });
+
     const handleEditorChange = (value: string | undefined) => {
-        if (value !== undefined) {
-            playgroundContext.updateHelperLib(value);
+        if (value === undefined) return;
+        if (pendingRef.current.timer !== null) {
+            window.clearTimeout(pendingRef.current.timer);
         }
+        pendingRef.current.flush = () => playgroundContext.updateHelperLib(value);
+        pendingRef.current.timer = window.setTimeout(() => {
+            pendingRef.current.flush?.();
+            pendingRef.current.timer = null;
+            pendingRef.current.flush = null;
+        }, 150);
     };
+
+    useEffect(() => {
+        return () => {
+            if (pendingRef.current.timer !== null) {
+                window.clearTimeout(pendingRef.current.timer);
+                pendingRef.current.flush?.();
+                pendingRef.current.timer = null;
+                pendingRef.current.flush = null;
+            }
+        };
+    }, []);
     const handleEditorWillMount = (monaco: Monaco) => {
         monaco.editor.defineTheme("dark-skyblue", DarkSkyBlueTheme);
     };

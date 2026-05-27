@@ -1,5 +1,5 @@
 import { FC } from "react";
-import OverviewSection from "@pages/auth-header/overview/Section";
+// import OverviewSection from "@pages/auth-header/overview/Section";
 import ProcessFlowSection from "@pages/auth-header/overview/ProcessFlowSection";
 import CryptoAlgorithmCard from "@pages/auth-header/overview/CryptoAlgorithmCard";
 import HeaderFormatSection from "@pages/auth-header/overview/HeaderFormatSection";
@@ -13,11 +13,12 @@ import {
 
 const Overview: FC = () => (
     <div className="space-y-8">
-        <OverviewSection />
+        {/* <OverviewSection /> */}
 
-        <ProcessFlowSection title="Signing Process Flow" steps={signingFlowSteps} />
-
-        <ProcessFlowSection title="Verification Process Flow" steps={verificationFlowSteps} />
+        <div className="grid md:grid-cols-2 gap-6">
+            <ProcessFlowSection title="Signing Process Flow" steps={signingFlowSteps} />
+            <ProcessFlowSection title="Verification Process Flow" steps={verificationFlowSteps} />
+        </div>
 
         <div className="grid md:grid-cols-2 gap-6">
             {algorithmCards.map((algorithm, index) => (

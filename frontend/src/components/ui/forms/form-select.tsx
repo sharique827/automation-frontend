@@ -86,7 +86,7 @@ const FormSelect = ({
           };
 
     return (
-        <div className="mb-2 w-full bg-gray-50 border rounded-md p-2 flex">
+        <div className="mb-2 w-full bg-gray-50 border rounded-md p-2 flex items-center">
             <LabelWithToolTip labelInfo={labelInfo} label={label} required={required} />
             <select {...selectProps} className={inputClass} disabled={disabled}>
                 {nonSelectedValue && (

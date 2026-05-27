@@ -38,8 +38,8 @@ export function getUsecaseLabelFromBuilds(
 ): string | null {
     const domain = builds.find((d) => d.key === domainKey);
     if (!domain?.version) return null;
-    // Normalize slug for comparison: treat hyphens and underscores as equivalent
-    const normalizeSlug = (s: string) => s.toLowerCase().replace(/[-_]+/g, "-");
+    // Normalize slug for comparison: spaces, hyphens, and underscores are equivalent
+    const normalizeSlug = (s: string) => s.toLowerCase().replace(/[\s_-]+/g, "-");
     const normalizedSlug = normalizeSlug(slug);
     for (const ver of domain.version) {
         if (ver.key !== versionKey) continue;

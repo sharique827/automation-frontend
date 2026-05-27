@@ -1,9 +1,10 @@
-import { useContext, useState, useMemo, useEffect } from "react";
+import { useContext, useState, useMemo, useEffect, useRef } from "react";
 import { PlaygroundContext } from "../context/playground-context";
 import { Editor, Monaco } from "@monaco-editor/react";
 import { PLAYGROUND_LEFT_TABS, PLAYGROUND_LEFT_TABS_FORM } from "../types";
 import { DarkSkyBlueTheme } from "./editor-themes";
-import MockRunner, { CodeValidator, getFunctionSchema } from "@ondc/automation-mock-runner";
+import { CodeValidator, getFunctionSchema } from "@ondc/automation-mock-runner";
+import { decodeBase64 } from "../utils/base64";
 import { CodeStatistics } from "./extras/statistics";
 
 // import { CodeStatistics } from "@ondc/automation-mock-runner"
@@ -34,7 +35,7 @@ export function LeftSideView(props: { width: string; activeApi?: string }) {
         if (!stepData) return "";
         const value = stepData.mock[activeTabConfig.property];
         if (typeof value === "string") {
-            return MockRunner.decodeBase64(value);
+            return decodeBase64(value);
         }
         return typeof value === "string" ? value : JSON.stringify(value, null, 2);
     };
@@ -81,11 +82,36 @@ export function LeftSideView(props: { width: string; activeApi?: string }) {
         }
     }, [activeLeftTab, stepData, activeApi]);
 
-    // Handle editor changes
+    const pendingRef = useRef<{ timer: number | null; flush: (() => void) | null }>({
+        timer: null,
+        flush: null,
+    });
+
     const handleEditorChange = (value: string | undefined) => {
         if (!value || !stepData || !playgroundContext.updateStepMock) return;
-        playgroundContext.updateStepMock(stepData.action_id, activeTabConfig.property, value);
+        const stepId = stepData.action_id;
+        const property = activeTabConfig.property;
+        if (pendingRef.current.timer !== null) {
+            window.clearTimeout(pendingRef.current.timer);
+        }
+        pendingRef.current.flush = () => playgroundContext.updateStepMock(stepId, property, value);
+        pendingRef.current.timer = window.setTimeout(() => {
+            pendingRef.current.flush?.();
+            pendingRef.current.timer = null;
+            pendingRef.current.flush = null;
+        }, 150);
     };
+
+    useEffect(() => {
+        return () => {
+            if (pendingRef.current.timer !== null) {
+                window.clearTimeout(pendingRef.current.timer);
+                pendingRef.current.flush?.();
+                pendingRef.current.timer = null;
+                pendingRef.current.flush = null;
+            }
+        };
+    }, [activeApi, activeLeftTab]);
 
     const handleEditorWillMount = (monaco: Monaco) => {
         monaco.editor.defineTheme("dark-skyblue", DarkSkyBlueTheme);

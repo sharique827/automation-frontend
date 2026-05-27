@@ -75,6 +75,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Print backend build environment values
+        run: |
+          echo "GitHub Actions environment: ${{ needs.version.outputs.environment }}"
+          echo "Backend build context: backend"
+          echo "Backend Dockerfile: backend/Dockerfile"
+          echo "Backend-specific build env vars: none configured in this workflow"
+
       - name: Set backend image metadata
         id: meta-backend
         uses: docker/metadata-action@v5
@@ -120,6 +127,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Print frontend build environment values
+        run: |
+          echo "GitHub Actions environment: ${{ needs.version.outputs.environment }}"
+          echo "VITE_BACKEND_URL=${{ vars.VITE_BACKEND_URL }}"
+          echo "VITE_BAP_URL=${{ vars.VITE_BAP_URL }}"
+          echo "VITE_BASE_URL=${{ vars.VITE_BASE_URL }}"
+          echo "VITE_BPP_URL=${{ vars.VITE_BPP_URL }}"
+          echo "VITE_DB_SERVICE_API_KEY=[redacted]"
+          echo "VITE_DEVELOPER_GUIDE_BACKEND_URL=${{ vars.VITE_DEVELOPER_GUIDE_BACKEND_URL }}"
+          echo "VITE_ENVIRONMENT=${{ vars.VITE_ENVIRONMENT }}"
+
       - name: Set frontend image metadata
         id: meta-frontend
         uses: docker/metadata-action@v5
@@ -143,9 +161,11 @@ jobs:
           labels: ${{ steps.meta-frontend.outputs.labels }}
           build-args: |
             VITE_BACKEND_URL=${{ vars.VITE_BACKEND_URL }}
-            VITE_BPP_URL=${{ vars.VITE_BPP_URL }}
             VITE_BAP_URL=${{ vars.VITE_BAP_URL }}
             VITE_BASE_URL=${{ vars.VITE_BASE_URL }}
+            VITE_BPP_URL=${{ vars.VITE_BPP_URL }}
+            VITE_DB_SERVICE_API_KEY=${{ vars.VITE_DB_SERVICE_API_KEY }}
+            VITE_DEVELOPER_GUIDE_BACKEND_URL=${{ vars.VITE_DEVELOPER_GUIDE_BACKEND_URL }}
             VITE_ENVIRONMENT=${{ vars.VITE_ENVIRONMENT }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend

@@ -24,8 +24,8 @@ type FormValues = {
 };
 
 type CatalogItem = { id: string };
-type CatalogFulfillment = { id: string };
-type CatalogProvider = { id: string; fulfillments: CatalogFulfillment[]; items?: CatalogItem[] };
+type CatalogFulfillment = { id: string; type?: string };
+type CatalogProvider = { id: string; fulfillments?: CatalogFulfillment[]; items?: CatalogItem[] };
 type OnSearchPayload = { message?: { catalog?: { providers?: CatalogProvider[] } } };
 
 // [
@@ -48,6 +48,7 @@ export default function TRV11Select({
         defaultValues: {
             provider: "",
             items: [{ itemId: "", count: 1, addOns: [] }],
+            fulfillment: "",
         },
     });
 
@@ -57,12 +58,14 @@ export default function TRV11Select({
     });
 
     const [itemOptions, setItemOptions] = useState<ExtractedItem[]>([]);
+    const [fulfillmentOptions, setFulfillmentOptions] = useState<CatalogFulfillment[]>([]);
 
     const onSubmit = async (data: FormValues) => {
         await submitEvent({ jsonPath: {}, formData: data as unknown as Record<string, string> });
     };
 
     const handlePaste = (payload: unknown) => {
+        setErrorWhilePaste("");
         try {
             const parsed = payload as OnSearchPayload;
             if (!parsed?.message?.catalog?.providers) return [];
@@ -70,15 +73,16 @@ export default function TRV11Select({
             const providers = parsed.message.catalog.providers;
 
             const results: ExtractedItem[] = [];
+            const allFulfillments: CatalogFulfillment[] = [];
 
             providers.forEach((provider: CatalogProvider) => {
                 const providerId = provider.id;
-                const fulfillmentId = provider.fulfillments[0]?.id;
-                if (!fulfillmentId) return;
+
+                if (provider.fulfillments) {
+                    allFulfillments.push(...provider.fulfillments);
+                }
 
                 if (!provider.items) return;
-
-                setValue("fulfillment" as unknown as FieldPath<FormValues>, fulfillmentId);
 
                 provider.items.forEach((item: CatalogItem) => {
                     results.push({
@@ -89,6 +93,7 @@ export default function TRV11Select({
             });
 
             setItemOptions(results);
+            setFulfillmentOptions(allFulfillments);
         } catch (err) {
             setErrorWhilePaste("Invalid payload structure.");
             toast.error("Invalid payload structure. Please check the pasted data.");
@@ -196,6 +201,31 @@ export default function TRV11Select({
                             Remove Item
                         </button>
                     )}
+                </div>
+
+                {/* Fulfillment Selection */}
+                <div className="border p-3 rounded space-y-2">
+                    <div className={fieldWrapperStyle}>
+                        <label className={labelStyle}>Select Fulfillment</label>
+                        {fulfillmentOptions.length === 0 ? (
+                            <input
+                                type="text"
+                                {...register("fulfillment")}
+                                placeholder="Fulfillment ID"
+                                className={inputStyle}
+                            />
+                        ) : (
+                            <select {...register("fulfillment")} className={inputStyle}>
+                                <option value="">Select Fulfillment...</option>
+                                {fulfillmentOptions.map((f) => (
+                                    <option key={f.id} value={f.id}>
+                                        {f.id}
+                                        {f.type ? ` (${f.type})` : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
                 </div>
 
                 <button

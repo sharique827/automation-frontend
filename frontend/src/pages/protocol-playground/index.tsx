@@ -19,6 +19,7 @@ import {
     saveGistConfig,
 } from "@pages/protocol-playground/utils/config-storage";
 import { fetchGistData, getFirstGistFile } from "@pages/protocol-playground/utils/fetch-gist";
+import { encodeBase64 } from "@pages/protocol-playground/utils/base64";
 
 const Body = ({ workbenchFlow }: { workbenchFlow: ReturnType<typeof useWorkbenchFlows> }) => {
     switch (workbenchFlow.flowStepNum) {
@@ -78,7 +79,7 @@ const ProtocolPlayGround = () => {
             property === "requirements" ||
             property === "formHtml"
         ) {
-            value = MockRunner.encodeBase64(value);
+            value = encodeBase64(value);
         } else {
             try {
                 value = JSON.parse(value);
@@ -140,7 +141,7 @@ const ProtocolPlayGround = () => {
     const updateHelperLib = (newCode: string) => {
         const current = playgroundState;
         if (!current) return;
-        current.helperLib = MockRunner.encodeBase64(newCode);
+        current.helperLib = encodeBase64(newCode);
         setCurrentConfig(current);
     };
 

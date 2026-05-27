@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import axios, { AxiosResponse } from "axios";
 import { toast } from "react-toastify";
 
@@ -8,6 +8,7 @@ import { getTransactionData } from "@utils/request-utils";
 import Modal from "@components/Modal";
 import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/20/solid";
 import LoadingButton from "@components/ui/forms/loading-button";
+import { UserContext } from "@context/userContext";
 
 type ReportRequestBody = Record<string, string[]>;
 
@@ -44,6 +45,7 @@ const GenerateReportModal = ({
     startPolling: () => void;
     setGotReport: (gotReport: boolean) => void;
 }) => {
+    const { userDetails } = useContext(UserContext);
     const [loading, setLoading] = useState(false);
 
     const generateReport = async () => {
@@ -76,11 +78,14 @@ const GenerateReportModal = ({
                 });
             }
 
+            const params: Record<string, string> = { sessionId };
+            if (userDetails?.username) {
+                params.user_id = userDetails.username;
+            }
+
             axios
                 .post(`${import.meta.env.VITE_BACKEND_URL}/flow/report`, body, {
-                    params: {
-                        sessionId: sessionId,
-                    },
+                    params,
                 })
                 .then((response: ReportResponse) => {
                     setLoading(false);

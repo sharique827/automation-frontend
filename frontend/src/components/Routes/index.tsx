@@ -15,10 +15,14 @@ import SellerLoadTesting from "@pages/seller-load-testing";
 import AuthHeader from "@pages/auth-header";
 import FrameworkHealthPage from "@pages/framework-health";
 import { ROUTES } from "@constants/routes";
-import DeveloperGuideLanding from "@/pages/developer-guide/landing/DeveloperGuideLanding";
 import DeveloperGuideFlowPage from "@/pages/developer-guide/DeveloperGuideFlowPage";
-import DeveloperGuideGettingStarted from "@/pages/developer-guide/landing/DeveloperGuideGettingStarted";
-import DeveloperGuideDocPage from "@/pages/developer-guide/DeveloperGuideDocPage";
+import DeveloperGuideShell from "@/pages/developer-guide/layout/DeveloperGuideShell";
+import DeveloperGuideOverview from "@/pages/developer-guide/layout/DeveloperGuideOverview";
+import DeveloperGuideGettingStartedContent from "@/pages/developer-guide/layout/DeveloperGuideGettingStartedContent";
+import DeveloperGuideAuthToolsContent from "@/pages/developer-guide/layout/DeveloperGuideAuthToolsContent";
+import DeveloperGuideGeneralContent from "@/pages/developer-guide/layout/DeveloperGuideGeneralContent";
+import DeveloperGuideDomainsContent from "@/pages/developer-guide/layout/DeveloperGuideDomainsContent";
+import DeveloperGuideDocContent from "@/pages/developer-guide/layout/DeveloperGuideDocContent";
 import ValidationsPage from "@/pages/developer-guide/ValidationsPage";
 
 /** Developer Guide is only available in development; redirect to home in production */
@@ -52,34 +56,18 @@ const Routes = () => (
             path={ROUTES.DEVELOPER_GUIDE}
             element={
                 <DeveloperGuideWrapper>
-                    <DeveloperGuideLanding />
+                    <DeveloperGuideShell />
                 </DeveloperGuideWrapper>
             }
-        />
-        <Route
-            path={ROUTES.DEVELOPER_GUIDE_GETTING_STARTED}
-            element={
-                <DeveloperGuideWrapper>
-                    <DeveloperGuideGettingStarted />
-                </DeveloperGuideWrapper>
-            }
-        />
-        <Route
-            path={ROUTES.DEVELOPER_GUIDE_USE_CASE}
-            element={
-                <DeveloperGuideWrapper>
-                    <DeveloperGuideFlowPage />
-                </DeveloperGuideWrapper>
-            }
-        />
-        <Route
-            path={ROUTES.DEVELOPER_GUIDE_DOC}
-            element={
-                <DeveloperGuideWrapper>
-                    <DeveloperGuideDocPage />
-                </DeveloperGuideWrapper>
-            }
-        />
+        >
+            <Route index element={<DeveloperGuideOverview />} />
+            <Route path="getting-started" element={<DeveloperGuideGettingStartedContent />} />
+            <Route path="general" element={<DeveloperGuideGeneralContent />} />
+            <Route path="domains" element={<DeveloperGuideDomainsContent />} />
+            <Route path="auth-tools" element={<DeveloperGuideAuthToolsContent />} />
+            <Route path="docs/:slug" element={<DeveloperGuideDocContent />} />
+            <Route path=":domain/:version/:useCase" element={<DeveloperGuideFlowPage />} />
+        </Route>
         <Route
             path={ROUTES.DEVELOPER_GUIDE_VALIDATIONS}
             element={

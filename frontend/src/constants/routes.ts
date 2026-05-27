@@ -19,6 +19,9 @@ export const ROUTES = {
     FRAMEWORK_HEALTH: "/framework-health",
     DEVELOPER_GUIDE: "/developer-guide",
     DEVELOPER_GUIDE_GETTING_STARTED: "/developer-guide/getting-started",
+    DEVELOPER_GUIDE_GENERAL: "/developer-guide/general",
+    DEVELOPER_GUIDE_DOMAINS: "/developer-guide/domains",
+    DEVELOPER_GUIDE_AUTH_TOOLS: "/developer-guide/auth-tools",
     SELLER_LOAD_TESTING: "/seller-load-testing",
     /** Use case flow: domain and version are URL-encoded if needed; useCase is slug e.g. personal_loan */
     DEVELOPER_GUIDE_USE_CASE: "/developer-guide/:domain/:version/:useCase",

@@ -92,11 +92,12 @@ export async function fetchChangelog(domain: string, version: string): Promise<C
 export async function fetchDocs(
     domain: string,
     version: string,
-    docSlug?: string
+    options?: Pick<FetchSpecOptions, "docSlug" | "usecase">
 ): Promise<Record<string, string>> {
     const raw = await fetchSpecRaw(domain, version, {
         include: ["docs"],
-        ...(docSlug ? { docSlug } : {}),
+        ...(options?.docSlug ? { docSlug: options.docSlug } : {}),
+        ...(options?.usecase ? { usecase: options.usecase } : {}),
     });
     if (!raw.docs?.length) return {};
     return Object.fromEntries(

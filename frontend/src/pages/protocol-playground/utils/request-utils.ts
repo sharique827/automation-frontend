@@ -31,6 +31,8 @@ export async function createFlowSessionWithPlayground(
                 timeValidations: true,
                 headerValidaton: false,
                 useGzip: false,
+                encryptionValidation: false,
+                useCare: false,
             },
             flowConfigs: {
                 [flowConfig.id]: flowConfig,

@@ -5,59 +5,60 @@ export type FlowId = string;
 export type PayloadId = string;
 
 export type SessionDifficulty = {
-	sensitiveTTL: boolean;
-	useGateway: boolean;
-	stopAfterFirstNack: boolean;
-	protocolValidations: boolean;
-	timeValidations: boolean;
-	headerValidaton: boolean;
-	useGzip: boolean;
+    sensitiveTTL: boolean;
+    useGateway: boolean;
+    stopAfterFirstNack: boolean;
+    protocolValidations: boolean;
+    timeValidations: boolean;
+    headerValidaton: boolean;
+    encryptionValidation?: boolean;
+    useCare?: boolean;
+    useTunnelForFIS?: boolean;
+    useGzip: boolean;
 };
 
 export type Expectation = {
-	sessionId: string;
-	flowId: string;
-	expectedAction?: string;
-	expireAt: string;
+    sessionId: string;
+    flowId: string;
+    expectedAction?: string;
+    expireAt: string;
 };
 
 export interface ApiData {
-	action: string;
-	payloadId: string;
-	messageId: string;
-	response: any;
-	timestamp: string;
+    action: string;
+    payloadId: string;
+    messageId: string;
+    response: any;
+    timestamp: string;
 }
 
 export interface TransactionCache {
-	sessionId?: string;
-	flowId?: string;
-	latestAction: string;
-	latestTimestamp: string;
-	type: "default" | "manual";
-	messageIds: string[];
-	apiList: ApiData[];
+    sessionId?: string;
+    flowId?: string;
+    latestAction: string;
+    latestTimestamp: string;
+    type: "default" | "manual";
+    messageIds: string[];
+    apiList: ApiData[];
 }
 
 export interface SubscriberCache {
-	activeSessions: Expectation[];
+    activeSessions: Expectation[];
 }
 
 export interface SessionCache {
-	// against session_id
-	transactionIds: string[];
-	flowMap: Record<FlowId, TransactionId | undefined>;
-	/** Stores the last txId for each flow after it is cleared, enabling Replay */
-	lastFlowMap?: Record<FlowId, TransactionId>;
-	npType: "BAP" | "BPP";
-	domain: string;
-	version: string;
-	subscriberId?: string;
-	subscriberUrl: string;
-	usecaseId: string;
-	env: "STAGING" | "PRE-PRODUCTION" | "LOGGED-IN";
-	sessionDifficulty: SessionDifficulty;
-	flowConfigs: Record<FlowId, Flow>;
-	activeFlow: null | string;
-	activeStep: number;
+    // against session_id
+    transactionIds: string[];
+    flowMap: Record<FlowId, TransactionId | undefined>;
+    npType: "BAP" | "BPP";
+    domain: string;
+    version: string;
+    subscriberId?: string;
+    subscriberUrl: string;
+    usecaseId: string;
+    env: "STAGING" | "PRE-PRODUCTION" | "LOGGED-IN";
+    sessionDifficulty: SessionDifficulty;
+    flowConfigs: Record<FlowId, Flow>;
+    activeFlow: null | string;
+    activeStep: number;
 }

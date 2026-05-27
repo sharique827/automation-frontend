@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { LuHistory } from "react-icons/lu";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import axios, { AxiosResponse, AxiosError } from "axios";
 import { toast } from "react-toastify";
 
@@ -95,6 +95,7 @@ export default function FlowContent() {
     });
     const { sessionId: contextSessionId } = useSession();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
     const [existingSessions, setExistingSessions] = useState<PreviousSessionItem[]>([]);
     const [isInitializing, setIsInitializing] = useState(true);
@@ -185,6 +186,9 @@ export default function FlowContent() {
         setIsFormSubmitted(true);
         // await fetchFlows(data);
         await onSubmit(data);
+        setIsFormSubmitted(false);
+        setSelectedConfigKey("");
+        setSelectedUsecaseId("");
     };
 
     const fetchFormFieldData = async (): Promise<Domain[]> => {
@@ -201,13 +205,13 @@ export default function FlowContent() {
         }
     };
 
-    const fetchAndApplyPreferences = async () => {
+    const fetchAndApplyPreferences = async (): Promise<Record<string, ScenarioFormData>> => {
         try {
             const response = await apiClient.get<Record<string, SavedPrefAPI>>(
                 API_ROUTES.USER.SCENARIO_PREFERENCES
             );
             const raw = response.data;
-            if (!raw) return;
+            if (!raw) return {};
 
             const mapped: Record<string, ScenarioFormData> = {};
             Object.entries(raw).forEach(([key, val]) => {
@@ -221,20 +225,31 @@ export default function FlowContent() {
                 };
             });
             setSavedPreferences(mapped);
+            return mapped;
         } catch {
-            // Not logged in or no saved preferences — leave defaults
             console.warn("Could not fetch saved preferences, possibly not logged in");
+            return {};
         }
     };
 
     useEffect(() => {
         const storedSessions = localStorage.getItem("flowTestingSessions");
         if (storedSessions) {
-            setExistingSessions(JSON.parse(storedSessions));
+            const parsed = JSON.parse(storedSessions) as PreviousSessionItem[];
+            parsed.sort(
+                (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+            setExistingSessions(parsed);
         }
-        Promise.all([fetchFormFieldData(), fetchAndApplyPreferences()]).finally(() =>
-            setIsInitializing(false)
-        );
+        Promise.all([fetchFormFieldData(), fetchAndApplyPreferences()])
+            .then(([, prefs]) => {
+                const configKey = searchParams.get("config");
+                if (configKey && prefs[configKey]) {
+                    setSelectedConfigKey(configKey);
+                    setSelectedUsecaseId(prefs[configKey].usecaseId || "");
+                }
+            })
+            .finally(() => setIsInitializing(false));
     }, []);
 
     function fetchSessionData(sessId: string) {
@@ -344,25 +359,27 @@ export default function FlowContent() {
                                                     className="w-full bg-gray-50 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:border-blue-500 hover:border-blue-300 shadow-sm"
                                                     value={selectedConfigKey}
                                                     onChange={(e) => {
-                                                        setSelectedConfigKey(e.target.value);
-                                                        setSelectedUsecaseId("");
+                                                        const key = e.target.value;
+                                                        setSelectedConfigKey(key);
+                                                        setSelectedUsecaseId(
+                                                            savedPreferences[key]?.usecaseId || ""
+                                                        );
                                                     }}
                                                 >
                                                     <option value="" disabled>
                                                         Select a configuration
                                                     </option>
                                                     {Object.entries(savedPreferences).map(
-                                                        ([key, config]) => (
+                                                        ([key]) => (
                                                             <option key={key} value={key}>
-                                                                {config.domain} | {config.version} |{" "}
-                                                                {config.npType}
+                                                                {key}
                                                             </option>
                                                         )
                                                     )}
                                                 </select>
                                             </div>
 
-                                            {/* Usecase picker — shown after config is selected */}
+                                            {/* Config summary + usecase picker (only when missing in config) */}
                                             {selectedConfigKey &&
                                                 (() => {
                                                     const cfg = savedPreferences[selectedConfigKey];
@@ -374,6 +391,7 @@ export default function FlowContent() {
                                                     )?.find((v) => v.key === cfg.version);
                                                     const usecaseOptions =
                                                         versionData?.usecase || [];
+                                                    const hasSavedUsecase = !!cfg.usecaseId;
                                                     return (
                                                         <div className="space-y-3">
                                                             <div className="text-xs text-gray-500 px-1">
@@ -382,32 +400,48 @@ export default function FlowContent() {
                                                                 </span>{" "}
                                                                 {cfg.subscriberUrl}
                                                             </div>
-                                                            <div className="flex flex-col gap-1">
-                                                                <label className="text-sm font-bold text-sky-700 ml-1">
-                                                                    Select Use Case{" "}
-                                                                    <span className="text-red-500">
-                                                                        *
+                                                            {hasSavedUsecase ? (
+                                                                <div className="text-xs text-gray-500 px-1">
+                                                                    <span className="font-medium text-gray-600">
+                                                                        Use Case:
+                                                                    </span>{" "}
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200">
+                                                                        {cfg.usecaseId}
                                                                     </span>
-                                                                </label>
-                                                                <select
-                                                                    className="w-full bg-gray-50 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:border-blue-500 hover:border-blue-300 shadow-sm"
-                                                                    value={selectedUsecaseId}
-                                                                    onChange={(e) =>
-                                                                        setSelectedUsecaseId(
-                                                                            e.target.value
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <option value="" disabled>
-                                                                        Select a use case
-                                                                    </option>
-                                                                    {usecaseOptions.map((uc) => (
-                                                                        <option key={uc} value={uc}>
-                                                                            {uc}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex flex-col gap-1">
+                                                                    <label className="text-sm font-bold text-sky-700 ml-1">
+                                                                        Select Use Case{" "}
+                                                                        <span className="text-red-500">
+                                                                            *
+                                                                        </span>
+                                                                    </label>
+                                                                    <select
+                                                                        className="w-full bg-gray-50 text-slate-700 text-sm border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:border-blue-500 hover:border-blue-300 shadow-sm"
+                                                                        value={selectedUsecaseId}
+                                                                        onChange={(e) =>
+                                                                            setSelectedUsecaseId(
+                                                                                e.target.value
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <option value="" disabled>
+                                                                            Select a use case
                                                                         </option>
-                                                                    ))}
-                                                                </select>
-                                                            </div>
+                                                                        {usecaseOptions.map(
+                                                                            (uc) => (
+                                                                                <option
+                                                                                    key={uc}
+                                                                                    value={uc}
+                                                                                >
+                                                                                    {uc}
+                                                                                </option>
+                                                                            )
+                                                                        )}
+                                                                    </select>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     );
                                                 })()}

@@ -9,5 +9,4 @@ export const labelClass = `
   font-bold
   text-sky-700
   ml-1
-  mb-1
 `.trim();
